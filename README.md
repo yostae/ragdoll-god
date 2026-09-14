@@ -7,6 +7,10 @@ in their hands.
 
 Runs in any modern browser (desktop or tablet). No install for players.
 
+Live build: https://yostae.github.io/ragdoll-god/ (ask for the secret word). Every push to `main`
+rebuilds and redeploys it through GitHub Pages; the hosted entry page is encrypted with the word
+by `tools/gate.mjs`, using the `GATE_PASSWORD` repo secret.
+
 ## Run it
 
 ```bash
