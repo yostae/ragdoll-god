@@ -9,7 +9,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "models:build": "node tools/build_models.mjs",
     "models:preview": "node tools/build_models.mjs --preview",
-    "models:verify": "node tools/verify_glb.mjs"
+    "models:verify": "node tools/verify_glb.mjs",
+    "build:gated": "vite build && node tools/gate.mjs"
   },
   "keywords": [],
   "author": "",

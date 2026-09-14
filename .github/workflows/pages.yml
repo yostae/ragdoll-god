@@ -20,7 +20,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: npm run build:gated
+        env:
+          GATE_PASSWORD: ${{ secrets.GATE_PASSWORD }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
