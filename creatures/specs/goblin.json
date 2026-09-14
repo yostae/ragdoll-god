@@ -1,7 +1,8 @@
 {
   "id": "goblin",
   "name": "Goblin",
-  "faction": "goblin",
+  "faction": "monster",
+  "enemyFactions": ["human", "hero", "farm"],
   "enemies": ["knight", "chicken"],
   "hp": 70,
   "walkSpeed": 2.0,
@@ -9,6 +10,8 @@
   "eyeHeight": 1.17,
   "standHeight": 0.62,
   "root": "pelvis",
+  "icon": "👺",
+  "blurb": "Sneaky, giggly and always up to no good",
   "palette": { "skin": "#6aa84f", "skinDark": "#4e7d38", "cloth": "#7a5a3c", "clothDark": "#58402a", "eyeYellow": "#f2d94e", "teeth": "#f4efdc" },
   "parts": [
     { "name": "pelvis", "parent": null, "shape": "box", "pos": [0, 0.62, 0], "size": [0.24, 0.14, 0.15], "mass": 4, "role": "pelvis" },

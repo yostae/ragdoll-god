@@ -1,0 +1,33 @@
+{
+  "id": "kid",
+  "name": "Kid",
+  "faction": "human",
+  "enemyFactions": ["monster", "villain", "alien", "wildlife"],
+  "enemies": [],
+  "hp": 50,
+  "walkSpeed": 2.4,
+  "grip": "hand.R",
+  "eyeHeight": 1.03,
+  "standHeight": 0.548,
+  "root": "pelvis",
+  "icon": "🧒",
+  "blurb": "Small, fast and full of mischief",
+  "palette": {"skin": "#f0c8a0", "shirt": "#f4f4f4", "stripe": "#d83a3a", "shorts": "#3a5fbf", "cap": "#2e9e4f", "capDark": "#1f6e37", "hair": "#5a3a22", "sneaker": "#ffffff", "sneakerSole": "#e2483d"},
+  "parts": [
+    { "name": "pelvis", "parent": null, "shape": "box", "pos": [0.0, 0.548, 0.0], "size": [0.209, 0.131, 0.131], "mass": 4.07, "role": "pelvis" },
+    { "name": "torso", "parent": "pelvis", "shape": "box", "pos": [0.0, 0.717, 0.0], "size": [0.247, 0.206, 0.144], "mass": 7.12, "role": "torso", "joint": {"anchor": [0.0, 0.614, 0.0], "limits": [-20, 20], "stiffness": 80, "damping": 6} },
+    { "name": "head", "parent": "torso", "shape": "box", "pos": [0.0, 1.0, 0.0], "size": [0.3, 0.3, 0.3], "mass": 2.54, "role": "head", "joint": {"anchor": [0.0, 0.84, 0.0], "limits": [-30, 30], "stiffness": 30, "damping": 3} },
+    { "name": "upperArm.L", "parent": "torso", "shape": "capsule", "pos": [-0.143, 0.717, -0.039], "size": [0.039, 0.089], "mass": 1.27, "side": "L", "role": "arm", "joint": {"anchor": [-0.128, 0.777, -0.039], "limits": [-160, 60]} },
+    { "name": "lowerArm.L", "parent": "upperArm.L", "shape": "capsule", "pos": [-0.143, 0.553, -0.039], "size": [0.036, 0.089], "mass": 0.76, "side": "L", "role": "arm", "joint": {"anchor": [-0.143, 0.633, -0.039], "limits": [0, 140]} },
+    { "name": "hand.L", "parent": "lowerArm.L", "shape": "sphere", "pos": [-0.143, 0.441, -0.039], "size": [0.036], "mass": 0.25, "side": "L", "role": "hand", "joint": {"anchor": [-0.143, 0.472, -0.039], "limits": [-30, 30]} },
+    { "name": "upperArm.R", "parent": "torso", "shape": "capsule", "pos": [0.143, 0.717, 0.039], "size": [0.039, 0.089], "mass": 1.27, "side": "R", "role": "arm", "joint": {"anchor": [0.128, 0.777, 0.039], "limits": [-160, 60]} },
+    { "name": "lowerArm.R", "parent": "upperArm.R", "shape": "capsule", "pos": [0.143, 0.553, 0.039], "size": [0.036, 0.089], "mass": 0.76, "side": "R", "role": "arm", "joint": {"anchor": [0.143, 0.633, 0.039], "limits": [0, 140]} },
+    { "name": "hand.R", "parent": "lowerArm.R", "shape": "sphere", "pos": [0.143, 0.441, 0.039], "size": [0.036], "mass": 0.25, "side": "R", "role": "hand", "joint": {"anchor": [0.143, 0.472, 0.039], "limits": [-30, 30]} },
+    { "name": "upperLeg.L", "parent": "pelvis", "shape": "capsule", "pos": [-0.061, 0.399, -0.039], "size": [0.049, 0.131], "mass": 3.05, "side": "L", "role": "leg", "joint": {"anchor": [-0.061, 0.513, -0.039], "limits": [-90, 60], "stiffness": 70, "damping": 5} },
+    { "name": "lowerLeg.L", "parent": "upperLeg.L", "shape": "capsule", "pos": [-0.061, 0.177, -0.039], "size": [0.042, 0.131], "mass": 2.03, "side": "L", "role": "leg", "joint": {"anchor": [-0.061, 0.284, -0.039], "limits": [-130, 0], "stiffness": 60, "damping": 5} },
+    { "name": "foot.L", "parent": "lowerLeg.L", "shape": "box", "pos": [-0.035, 0.029, -0.039], "size": [0.144, 0.059, 0.091], "mass": 0.76, "side": "L", "role": "foot", "joint": {"anchor": [-0.061, 0.069, -0.039], "limits": [-30, 30]} },
+    { "name": "upperLeg.R", "parent": "pelvis", "shape": "capsule", "pos": [0.061, 0.399, 0.039], "size": [0.049, 0.131], "mass": 3.05, "side": "R", "role": "leg", "joint": {"anchor": [0.061, 0.513, 0.039], "limits": [-90, 60], "stiffness": 70, "damping": 5} },
+    { "name": "lowerLeg.R", "parent": "upperLeg.R", "shape": "capsule", "pos": [0.061, 0.177, 0.039], "size": [0.042, 0.131], "mass": 2.03, "side": "R", "role": "leg", "joint": {"anchor": [0.061, 0.284, 0.039], "limits": [-130, 0], "stiffness": 60, "damping": 5} },
+    { "name": "foot.R", "parent": "lowerLeg.R", "shape": "box", "pos": [0.086, 0.029, 0.039], "size": [0.144, 0.059, 0.091], "mass": 0.76, "side": "R", "role": "foot", "joint": {"anchor": [0.061, 0.069, 0.039], "limits": [-30, 30]} }
+  ]
+}

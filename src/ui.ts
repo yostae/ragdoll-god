@@ -4,11 +4,11 @@ import { CREATURES, CREATURE_ORDER, DECOR, DECOR_ORDER, ITEMS, ITEM_ORDER, MATER
 import { materialTexture } from './sprites';
 import { PRESET_MAPS } from './maps';
 import { storage, exportMap, importMap } from './storage';
-import { lookupCode, unlockedMods } from './mods';
+import { lookupCode, unlockedMods, unlockedPacks, PACKS } from './mods';
 import type { ItemKind, MapData } from './types';
 
 const CREATURE_ICONS: Record<string, string> = { knight: '🛡️', goblin: '👺', wolf: '🐺', chicken: '🐔' };
-const PRESET_ICONS: Record<string, string> = { 'Sunny Meadow': '🌻', 'Castle Yard': '🏰', 'Icy Cliffs': '🧊', 'Blank Canvas': '📄' };
+const PRESET_ICONS: Record<string, string> = { 'Sunny Meadow': '🌻', 'Castle Yard': '🏰', 'Icy Cliffs': '🧊', 'Volcano Peak': '🌋', 'Moon Base': '🌙', 'Blank Canvas': '📄' };
 
 type Tab = 'creatures' | 'materials' | 'items' | 'mods';
 
@@ -58,6 +58,8 @@ export class UI {
     this.onTool(input.tool);
     this.onMode(game.mode);
     game.setActiveMods(this.settings.activeMods.filter((id) => unlockedMods(this.codes).some((m) => m.id === id)));
+    game.setPacks(unlockedPacks(this.codes).map((p) => p.id));
+    this.renderPanel();
     this.showMapPicker();
     if (window.innerWidth < 800) this.toggleSidebar(false);
   }
@@ -147,15 +149,28 @@ export class UI {
     if (this.tab === 'creatures') {
       this.panel.appendChild(el('h3', undefined, 'Creatures'));
       this.panel.appendChild(el('p', 'help', 'Tap a creature, then tap the map to drop it in. Enemies fight on sight!'));
-      const grid = el('div', 'grid');
-      for (const id of CREATURE_ORDER) {
-        const spec = CREATURES[id];
-        const card = el('button', 'card', `<span class="icon">${CREATURE_ICONS[id] ?? '🧬'}</span><span class="name">${spec.name}</span><small>fights ${spec.enemies.map((e) => CREATURES[e]?.name ?? e).join(', ')}</small>`);
-        card.dataset.tool = `place:creature:${id}`;
-        cardDrag(card, { type: 'place', kind: 'creature', id });
-        grid.appendChild(card);
+      const unlocked = new Set(this.game.packs);
+      const groups: Array<{ title: string | null; ids: string[] }> = [{ title: null, ids: CREATURE_ORDER.filter((id) => !CREATURES[id].pack) }];
+      for (const packId of Object.keys(PACKS)) {
+        if (!unlocked.has(packId)) continue;
+        const ids = CREATURE_ORDER.filter((id) => CREATURES[id].pack === packId);
+        if (ids.length) groups.push({ title: `${PACKS[packId].icon} ${PACKS[packId].name}`, ids });
       }
-      this.panel.appendChild(grid);
+      for (const g of groups) {
+        if (g.title) this.panel.appendChild(el('h3', undefined, g.title));
+        const grid = el('div', 'grid');
+        for (const id of g.ids) {
+          const spec = CREATURES[id];
+          const sub = spec.blurb ?? `fights ${spec.enemies.map((e) => CREATURES[e]?.name ?? e).join(', ')}`;
+          const card = el('button', 'card', `<span class="icon">${spec.icon ?? CREATURE_ICONS[id] ?? '🧬'}</span><span class="name">${spec.name}</span><small>${sub}</small>`);
+          card.dataset.tool = `place:creature:${id}`;
+          cardDrag(card, { type: 'place', kind: 'creature', id });
+          grid.appendChild(card);
+        }
+        this.panel.appendChild(grid);
+      }
+      const lockedCount = CREATURE_ORDER.filter((id) => CREATURES[id].pack && !unlocked.has(CREATURES[id].pack!)).length;
+      if (lockedCount) this.panel.appendChild(el('p', 'help', `🔒 ${lockedCount} more creatures are hiding behind secret codes.`));
     } else if (this.tab === 'materials') {
       this.panel.appendChild(el('h3', undefined, 'Materials'));
       this.panel.appendChild(el('p', 'help', 'Pick one, then drag a rectangle on the map. Loose blocks tumble; use 📌 to pin or unpin.'));
@@ -186,8 +201,11 @@ export class UI {
       this.panel.appendChild(el('h3', undefined, 'Items & Weapons'));
       this.panel.appendChild(el('p', 'help', 'Tap an item, then tap a creature or block to use it on them. <b>Drop</b> puts the item on the map so creatures can grab it.'));
       const list = el('div', 'list');
+      const unlockedI = new Set(this.game.packs);
+      const lockedItems = ITEM_ORDER.filter((id) => ITEMS[id].pack && !unlockedI.has(ITEMS[id].pack!)).length;
       for (const id of ITEM_ORDER) {
         const it = ITEMS[id];
+        if (it.pack && !unlockedI.has(it.pack)) continue;
         const row = el('div', 'item-row');
         const use = el('button', 'card', `<span class="icon">${it.icon}</span><span class="name">${it.name}</span><small>${it.hint}</small>`);
         use.dataset.tool = `use:${id}`;
@@ -199,6 +217,7 @@ export class UI {
         list.appendChild(row);
       }
       this.panel.appendChild(list);
+      if (lockedItems) this.panel.appendChild(el('p', 'help', `🔒 ${lockedItems} more items are hiding behind secret codes.`));
     } else {
       this.panel.appendChild(el('h3', undefined, 'Mods'));
       const mods = unlockedMods(this.codes);
@@ -221,6 +240,13 @@ export class UI {
         list.appendChild(row);
       }
       this.panel.appendChild(list);
+      const packs = unlockedPacks(this.codes);
+      if (packs.length) {
+        this.panel.appendChild(el('h3', undefined, 'Unlocked packs'));
+        const plist = el('div', 'list');
+        for (const p of packs) plist.appendChild(el('div', 'unlocked', `${p.icon} <b>${p.name}</b><br><small>${p.description}</small>`));
+        this.panel.appendChild(plist);
+      }
       const codeBtn = el('button', 'btn wide', '🔑 Enter a code');
       codeBtn.onclick = () => this.codesModal.classList.remove('hidden');
       this.panel.appendChild(codeBtn);
@@ -419,10 +445,12 @@ export class UI {
         this.codes.push(def.code);
         storage.saveCodes(this.codes);
       }
-      msg.textContent = `Unlocked the ${def.title}!`;
+      const packNames = (def.packs ?? []).map((p) => PACKS[p]?.name).filter(Boolean);
+      msg.textContent = `Unlocked the ${def.title}!` + (packNames.length ? ` New stuff in the panels.` : '');
       inp.value = '';
+      this.game.setPacks(unlockedPacks(this.codes).map((p) => p.id));
       refresh();
-      if (this.tab === 'mods') this.renderPanel();
+      this.renderPanel();
     };
     go.onclick = submit;
     inp.onkeydown = (e) => {

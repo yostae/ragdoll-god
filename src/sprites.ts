@@ -114,6 +114,34 @@ export function materialTexture(m: MaterialDef): THREE.Texture {
           else if (r() < 0.05) px(x, y, m.color2);
         }
       break;
+    case 'lava':
+      for (let y = 0; y < S; y++)
+        for (let x = 0; x < S; x++) {
+          const w = Math.sin(x * 0.9 + y * 0.5) + Math.cos(y * 1.3 - x * 0.3);
+          if (w > 1.0) px(x, y, m.color2);
+          else if (w < -1.2) px(x, y, shade(m.color, -0.18));
+          else if (r() < 0.06) px(x, y, '#fff2a0');
+        }
+      break;
+    case 'moon':
+      for (let y = 0; y < S; y++)
+        for (let x = 0; x < S; x++) {
+          const d1 = Math.hypot(x - 5, y - 6);
+          const d2 = Math.hypot(x - 12, y - 12);
+          if (d1 < 2.5 || d2 < 1.8) px(x, y, m.color2);
+          else if (d1 < 3.2 || d2 < 2.5) px(x, y, shade(m.color, 0.08));
+          else if (r() < 0.08) px(x, y, m.color2);
+        }
+      break;
+    case 'gold':
+      for (let y = 0; y < S; y++)
+        for (let x = 0; x < S; x++) {
+          if (x === 0 || y === 0) px(x, y, shade(m.color, 0.18));
+          else if (x === S - 1 || y === S - 1) px(x, y, m.color2);
+          else if ((x + y) % 7 === 0) px(x, y, shade(m.color, 0.12));
+          else if (r() < 0.05) px(x, y, '#fff7c0');
+        }
+      break;
   }
   const t = pixelTexture(c, true);
   cache.set(key, t);
@@ -170,6 +198,12 @@ export function decorTexture(id: string): THREE.Texture {
   if (id === 'flower') (W = 24), (H = 16);
   if (id === 'rock') (W = 24), (H = 16);
   if (id === 'castle') (W = 96), (H = 72);
+  if (id === 'volcano') (W = 112), (H = 72);
+  if (id === 'deadtree') (W = 24), (H = 40);
+  if (id === 'stars') (W = 80), (H = 48);
+  if (id === 'earth') (W = 32), (H = 32);
+  if (id === 'crater') (W = 48), (H = 12);
+  if (id === 'moonflag') (W = 18), (H = 32);
   const { c, ctx } = makeCanvas(W, H);
   const r = rng(id.length * 31 + 7);
   const px = (x: number, y: number, col: string) => {
@@ -255,6 +289,61 @@ export function decorTexture(id: string): THREE.Texture {
       rect(76, 20, 4, 6, '#2b3a55');
       rect(14, 0, 1, 6, '#5a3618');
       rect(15, 0, 5, 3, '#e14d4d');
+      break;
+    case 'volcano':
+      for (let y = 0; y < H; y++)
+        for (let x = 0; x < W; x++) {
+          const half = 12 + (y / H) * 44;
+          if (Math.abs(x - 56) <= half) px(x, y, r() < 0.12 ? '#3a2f45' : y < 6 ? '#5b4a6a' : '#2a2333');
+        }
+      rect(50, 0, 12, 4, '#ff5a1f');
+      for (let y = 4; y < 40; y++) {
+        px(54 + Math.sin(y * 0.4) * 2, y, '#ff5a1f');
+        px(55 + Math.sin(y * 0.4) * 2, y, '#ffd23f');
+      }
+      for (let i = 0; i < 12; i++) px(44 + r() * 24, r() * 10, '#ffd23f');
+      break;
+    case 'deadtree':
+      rect(11, 14, 3, 26, '#3b2a20');
+      rect(6, 10, 6, 2, '#3b2a20');
+      rect(4, 6, 2, 5, '#3b2a20');
+      rect(14, 8, 6, 2, '#3b2a20');
+      rect(18, 3, 2, 6, '#3b2a20');
+      rect(12, 4, 2, 10, '#3b2a20');
+      break;
+    case 'stars':
+      for (let i = 0; i < 70; i++) {
+        const x = r() * W;
+        const y = r() * H;
+        const bright = r() < 0.3;
+        px(x, y, bright ? '#ffffff' : '#a8b8ff');
+        if (bright && r() < 0.5) {
+          px(x + 1, y, '#dfe6ff');
+          px(x - 1, y, '#dfe6ff');
+          px(x, y + 1, '#dfe6ff');
+          px(x, y - 1, '#dfe6ff');
+        }
+      }
+      break;
+    case 'earth':
+      disc(16, 16, 13, '#2f6fd6', '#3d86f0');
+      for (let i = 0; i < 6; i++) disc(6 + r() * 20, 6 + r() * 20, 2 + r() * 4, '#3fa34d', '#6fcf5c');
+      for (let i = 0; i < 5; i++) disc(6 + r() * 20, 6 + r() * 20, 1 + r() * 2, '#ffffff');
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (Math.hypot(x - 16, y - 16) > 13) ctx.clearRect(x, y, 1, 1);
+      break;
+    case 'crater':
+      for (let y = 0; y < H; y++)
+        for (let x = 0; x < W; x++) {
+          const d = Math.hypot((x - 24) / 24, (y - 6) / 6);
+          if (d > 0.8 && d < 1) px(x, y, '#b5b5c2');
+          else if (d < 0.8 && r() < 0.35) px(x, y, '#6d6d7a');
+        }
+      break;
+    case 'moonflag':
+      rect(3, 2, 2, 30, '#d9d9d9');
+      rect(5, 2, 12, 9, '#e14d4d');
+      rect(5, 5, 12, 2, '#ffffff');
+      rect(5, 2, 5, 5, '#2b3a9a');
       break;
   }
   const t = pixelTexture(c);

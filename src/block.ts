@@ -74,7 +74,12 @@ export class Block {
     const tex = materialTexture(this.material).clone();
     tex.repeat.set(this.w, this.h);
     tex.needsUpdate = true;
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: this.material.pattern === 'metal' ? 0.3 : 0 });
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: this.material.metal ? 0.35 : 0.95, metalness: this.material.metal ?? (this.material.pattern === 'metal' ? 0.3 : 0) });
+    if (this.material.glow) {
+      mat.emissive = new THREE.Color(this.material.glow);
+      mat.emissiveIntensity = 0.7;
+      mat.emissiveMap = tex;
+    }
     if (this.material.id === 'ice') {
       mat.transparent = true;
       mat.opacity = 0.85;

@@ -129,6 +129,24 @@ export class Item {
     }
   }
 
+  gold = false;
+
+  /** Midas touch on an item: heavy and shiny. */
+  setGold() {
+    if (this.gold) return;
+    this.gold = true;
+    this.collider.setMass(this.def.mass * 4);
+    this.mesh.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || m.name === 'bubble') return;
+      const sm = m.material as THREE.MeshStandardMaterial;
+      sm.color.set('#ffc42e');
+      sm.metalness = 0.85;
+      sm.roughness = 0.3;
+      sm.emissive.set(0x000000);
+    });
+  }
+
   setFloating(on: boolean) {
     this.body.setGravityScale(on ? 0.05 : 1, true);
     if (on && !this.floatMat) {

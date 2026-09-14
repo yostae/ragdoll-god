@@ -1,0 +1,24 @@
+{
+  "id": "slime",
+  "name": "Slime",
+  "faction": "monster",
+  "enemyFactions": ["human", "hero", "farm"],
+  "enemies": [],
+  "hp": 40,
+  "walkSpeed": 1.3,
+  "grip": "nub.R",
+  "eyeHeight": 0.66,
+  "standHeight": 0.36,
+  "root": "body",
+  "icon": "🟢",
+  "blurb": "Bouncy, gooey and always hungry",
+  "palette": {"goo": "#8fe07a", "gooDark": "#5cb548", "gooLight": "#c6f5b5", "mouth": "#3b7a2c"},
+  "parts": [
+    { "name": "body", "parent": null, "shape": "sphere", "pos": [0, 0.36, 0], "size": [0.3], "mass": 12, "role": "body" },
+    { "name": "head", "parent": "body", "shape": "sphere", "pos": [0.04, 0.63, 0], "size": [0.14], "mass": 3, "role": "head", "joint": {"anchor": [0.03, 0.55, 0], "limits": [-25, 25], "stiffness": 30, "damping": 3} },
+    { "name": "nub.L", "parent": "body", "shape": "capsule", "pos": [0.31, 0.38, -0.07], "rot": [0, 0, -90], "size": [0.04, 0.08], "mass": 0.4, "side": "L", "role": "arm", "joint": {"anchor": [0.26, 0.38, -0.07], "limits": [-60, 60], "stiffness": 20, "damping": 2} },
+    { "name": "nub.R", "parent": "body", "shape": "capsule", "pos": [0.31, 0.38, 0.07], "rot": [0, 0, -90], "size": [0.04, 0.08], "mass": 0.4, "side": "R", "role": "arm", "joint": {"anchor": [0.26, 0.38, 0.07], "limits": [-60, 60], "stiffness": 20, "damping": 2} },
+    { "name": "upperLeg.L", "parent": "body", "shape": "capsule", "pos": [-0.1, 0.07, -0.06], "size": [0.045, 0.05], "mass": 1, "side": "L", "role": "leg", "joint": {"anchor": [-0.1, 0.12, -0.06], "limits": [-60, 60], "stiffness": 50, "damping": 4} },
+    { "name": "upperLeg.R", "parent": "body", "shape": "capsule", "pos": [0.1, 0.07, 0.06], "size": [0.045, 0.05], "mass": 1, "side": "R", "role": "leg", "joint": {"anchor": [0.1, 0.12, 0.06], "limits": [-60, 60], "stiffness": 50, "damping": 4} }
+  ]
+}

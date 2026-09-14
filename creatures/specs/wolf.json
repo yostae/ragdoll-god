@@ -1,7 +1,8 @@
 {
   "id": "wolf",
   "name": "Wolf",
-  "faction": "beast",
+  "faction": "wildlife",
+  "enemyFactions": ["farm", "human"],
   "enemies": ["chicken", "knight"],
   "hp": 80,
   "walkSpeed": 3.0,
@@ -9,6 +10,8 @@
   "eyeHeight": 0.78,
   "standHeight": 0.6,
   "root": "pelvis",
+  "icon": "🐺",
+  "blurb": "Fast, hungry and howls at everything",
   "palette": { "fur": "#8a8f96", "furDark": "#5c6169", "furLight": "#c9ccd0", "nose": "#1f1f1f", "tongue": "#d64a5a" },
   "parts": [
     { "name": "pelvis", "parent": null, "shape": "box", "pos": [-0.35, 0.6, 0], "size": [0.32, 0.28, 0.24], "mass": 9, "role": "pelvis" },

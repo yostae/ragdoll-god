@@ -6,7 +6,15 @@ import { cloneModel, loadCreatureModel } from './models';
 import type { Item } from './item';
 import type { Effects } from './effects';
 
-export type BrainState = 'upright' | 'ko' | 'gettingUp' | 'held';
+export type BrainState = 'upright' | 'ko' | 'gettingUp' | 'held' | 'statue';
+
+export interface CreatureOptions {
+  partScales?: Record<string, number>; // mutation wand: per-part size multipliers
+  extraParts?: PartSpec[]; // body-part potion: extra limbs appended to the spec
+  statue?: boolean; // turned to gold
+}
+
+const GOLD = new THREE.Color('#ffc42e');
 
 const DEG = Math.PI / 180;
 const ROLE_SUPPORT = new Set(['pelvis', 'torso', 'body']);
@@ -42,6 +50,7 @@ interface Part {
   poseTarget: number; // desired joint angle relative to rest, radians
   stiffness: number;
   damping: number;
+  mass: number;
 }
 
 interface BoneBinding {
@@ -101,6 +110,9 @@ export class Creature {
   floatTimer = 0;
   hurtFlash = 0;
   invuln = 0; // seconds of immunity after getting up
+  partScales: Record<string, number> = {};
+  extraParts: PartSpec[] = [];
+  statue = false;
   settledFor = 0; // seconds the ragdoll has been at rest while down
   getUpElapsed = 0;
   wantItem: Item | null = null; // an item this creature is walking toward
@@ -118,12 +130,15 @@ export class Creature {
     scale = 1,
     tint?: string,
     headMod = 1,
+    opts: CreatureOptions = {},
   ) {
     this.spec = spec;
     this.scale = scale;
     this.facing = facing;
     this.tint = tint;
     this.headMod = headMod;
+    this.partScales = { ...(opts.partScales ?? {}) };
+    this.extraParts = (opts.extraParts ?? []).map((p) => JSON.parse(JSON.stringify(p)) as PartSpec);
     this.hp = this.maxHp = spec.hp;
     this.scene.add(this.container);
     this.build(x, y);
@@ -133,12 +148,18 @@ export class Creature {
       if (this.disposed || !model) return;
       this.attachModel(model);
     });
+    if (opts.statue) this.petrify();
+  }
+
+  /** All parts: the spec's plus any potion-grown extras. */
+  private allPartSpecs(): PartSpec[] {
+    return [...this.spec.parts, ...this.extraParts];
   }
 
   // ---------- construction ----------
 
   private partSize(p: PartSpec): number[] {
-    const s = this.scale * (p.role === 'head' ? this.headMod : 1);
+    const s = this.scale * (p.role === 'head' ? this.headMod : 1) * (this.partScales[p.name] ?? 1);
     return p.size.map((v) => v * s);
   }
 
@@ -166,7 +187,8 @@ export class Creature {
       if (ps.shape === 'box') cd = RAPIER.ColliderDesc.cuboid(size[0] / 2, size[1] / 2, size[2] / 2);
       else if (ps.shape === 'capsule') cd = RAPIER.ColliderDesc.capsule(size[1] / 2, size[0]);
       else cd = RAPIER.ColliderDesc.ball(size[0]);
-      const mass = ps.mass * s * s * s * (ps.role === 'head' ? this.headMod : 1);
+      const ms = this.partScales[ps.name] ?? 1;
+      const mass = ps.mass * s * s * s * (ps.role === 'head' ? this.headMod : 1) * ms * ms;
       cd.setMass(mass)
         .setFriction(0.7)
         .setRestitution(0.05)
@@ -191,6 +213,7 @@ export class Creature {
         poseTarget: 0,
         stiffness: ps.joint?.stiffness ?? 40,
         damping: ps.joint?.damping ?? 3,
+        mass,
       };
       if (parent && ps.joint) {
         const anchorWorld = new THREE.Vector3(ps.joint.anchor[0] * s, ps.joint.anchor[1] * s, ps.joint.anchor[2] * s).applyQuaternion(q0).add(new THREE.Vector3(x, y, 0));
@@ -222,7 +245,8 @@ export class Creature {
   private topoOrder(): PartSpec[] {
     const out: PartSpec[] = [];
     const seen = new Set<string>();
-    const byName = new Map(this.spec.parts.map((p) => [p.name, p]));
+    const all = this.allPartSpecs();
+    const byName = new Map(all.map((p) => [p.name, p]));
     const visit = (p: PartSpec) => {
       if (seen.has(p.name)) return;
       if (p.parent) {
@@ -232,7 +256,7 @@ export class Creature {
       seen.add(p.name);
       out.push(p);
     };
-    this.spec.parts.forEach(visit);
+    all.forEach(visit);
     return out;
   }
 
@@ -283,14 +307,17 @@ export class Creature {
       console.warn(`Model for ${this.spec.id} is missing bones; keeping fallback meshes.`);
       return;
     }
-    for (const mesh of this.fallbackMeshes.values()) {
+    for (const b of bindings) {
+      const mesh = this.fallbackMeshes.get(b.part);
+      if (!mesh) continue;
       this.container.remove(mesh);
       mesh.geometry.dispose();
+      this.fallbackMeshes.delete(b.part);
     }
-    this.fallbackMeshes.clear();
     this.bones = bindings;
     this.container.add(model);
     this.applyTint();
+    if (this.statue) this.applyGold();
     this.syncVisuals();
   }
 
@@ -346,7 +373,35 @@ export class Creature {
   }
 
   isEnemyOf(other: Creature) {
-    return this.spec.enemies.includes(other.spec.id);
+    if (other.statue) return false;
+    return this.spec.enemies.includes(other.spec.id) || (this.spec.enemyFactions?.includes(other.spec.faction) ?? false);
+  }
+
+  /** Midas touch: a heavy golden statue that never gets up again. */
+  petrify() {
+    if (this.statue) return;
+    this.statue = true;
+    if (this.heldItem) this.dropItem();
+    this.setState('statue');
+    for (const p of this.parts) p.collider.setMass(p.mass * 3);
+    this.applyGold();
+  }
+
+  private applyGold() {
+    this.container.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mat of mats) {
+        const sm = mat as THREE.MeshStandardMaterial;
+        if (!sm.color) continue;
+        sm.color.copy(GOLD);
+        sm.metalness = 0.85;
+        sm.roughness = 0.3;
+        if (sm.map) sm.map = null;
+        sm.needsUpdate = true;
+      }
+    });
   }
 
   bodies(): RAPIER.RigidBody[] {
@@ -402,7 +457,7 @@ export class Creature {
   }
 
   hurt(amount: number, fromX?: number) {
-    if (amount <= 0 || this.invuln > 0 || this.state === 'gettingUp') return;
+    if (amount <= 0 || this.invuln > 0 || this.state === 'gettingUp' || this.statue) return;
     this.hp -= amount;
     this.hurtFlash = 0.25;
     if (this.hp <= 0 && this.state !== 'ko') {
@@ -420,7 +475,7 @@ export class Creature {
 
   /** Full ragdoll until the body comes to rest (at least `minSeconds`), then get back up. */
   knockDown(minSeconds = 0.5) {
-    if (this.state === 'ko' || this.state === 'held') return;
+    if (this.state === 'ko' || this.state === 'held' || this.statue) return;
     this.setState('ko', minSeconds);
   }
 
@@ -439,6 +494,7 @@ export class Creature {
   /** Called by the God's hand tool. */
   setGrabbed(g: boolean) {
     this.grabbed = g;
+    if (this.statue) return;
     if (g) this.setState('held');
     else this.setState('ko', this.hp <= 0 ? 2 : 0.2); // lands like a ragdoll, then gets up once still
   }
@@ -508,6 +564,7 @@ export class Creature {
       this.floatTimer -= dt;
       if (this.floatTimer <= 0) this.setGravityScale(1);
     }
+    if (this.state === 'statue') return;
     if (this.state === 'ko' || this.state === 'held') {
       if (this.state === 'ko') {
         this.stateTimer -= dt;
@@ -671,6 +728,7 @@ export class Creature {
     this.thinkTimer -= dt;
     if (this.thinkTimer > 0) return;
     this.thinkTimer = 0.15;
+    if (this.statue) return;
     if (this.state !== 'upright') {
       this.moveDir = 0;
       return;
@@ -773,7 +831,7 @@ export class Creature {
       for (const part of this.parts) {
         const t = part.body.translation();
         const r = part.body.rotation();
-        const partScale = s * (part.spec.role === 'head' ? this.headMod : 1);
+        const partScale = s * (part.spec.role === 'head' ? this.headMod : 1) * (this.partScales[part.spec.name] ?? 1);
         worlds.set(part.spec.name, new THREE.Matrix4().compose(_p.set(t.x, t.y, t.z), _q.set(r.x, r.y, r.z, r.w), _s.set(partScale, partScale, partScale)));
       }
       for (const b of this.bones) {
@@ -791,7 +849,8 @@ export class Creature {
         b.bone.matrix.copy(parentWorld).invert().multiply(_m);
         b.bone.matrixWorldNeedsUpdate = true;
       }
-    } else {
+    }
+    if (this.fallbackMeshes.size) {
       for (const part of this.parts) {
         const mesh = this.fallbackMeshes.get(part.spec.name);
         if (!mesh) continue;

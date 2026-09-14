@@ -173,16 +173,49 @@ class MeshBuilder:
         else:
             raise ValueError(f"unknown shape {shape}")
 
-    def eyes(self, center, forward_offset, up_offset, z_half, r, white=True, pupil_r=None):
+    def eyes(self, center, forward_offset, up_offset, z_half, r, white=True, pupil_r=None,
+             white_mat="eyeWhite", pupil_mat="eye"):
         """Pair of eyes on the +Z/-Z sides of a head so they read from the side camera."""
         pupil_r = pupil_r or r * 0.55
         for sgn in (-1, 1):
             p = (center[0] + forward_offset, center[1] + up_offset, center[2] + sgn * z_half)
             if white:
-                self.sphere(p, r, "eyeWhite", segs=6, rings=4)
-                self.sphere((p[0] + r * 0.25, p[1], p[2] + sgn * r * 0.55), pupil_r, "eye", segs=6, rings=4)
+                self.sphere(p, r, white_mat, segs=6, rings=4)
+                self.sphere((p[0] + r * 0.25, p[1], p[2] + sgn * r * 0.55), pupil_r, pupil_mat, segs=6, rings=4)
             else:
-                self.sphere(p, r, "eye", segs=6, rings=4)
+                self.sphere(p, r, pupil_mat, segs=6, rings=4)
+
+    def front_eyes(self, center, hx, up_offset, z_gap, r, white_mat="eyeWhite", pupil_mat="eye"):
+        """Pair of eyes on the +X (front) face, for the 3D view; z_gap = distance from the centre line."""
+        for sgn in (-1, 1):
+            p = (center[0] + hx, center[1] + up_offset, center[2] + sgn * z_gap)
+            self.sphere(p, r, white_mat, segs=6, rings=4)
+            self.sphere((p[0] + r * 0.55, p[1], p[2]), r * 0.55, pupil_mat, segs=6, rings=4)
+
+    def bands(self, part, mat, count, inflate=0.006, width=0.03, start=0.15, end=0.85):
+        """Thin rings around a capsule (bandages / cuffs), spaced along its axis."""
+        top, bottom = capsule_ends(part)
+        r = part["size"][0] + inflate
+        for i in range(count):
+            t = start + (end - start) * (i / max(1, count - 1))
+            c = bottom.lerp(top, t)
+            self.cone(c, r, r, width, mat, rot=part.get("rot"), segs=8)
+
+    def slabs(self, part, mat, count, inflate=0.006, height=0.03, start=0.15, end=0.85):
+        """Thin horizontal slabs around a box part (stripes on a shirt, bandages on a torso)."""
+        c, s = part["pos"], part["size"]
+        for i in range(count):
+            t = start + (end - start) * (i / max(1, count - 1))
+            y = c[1] - s[1] / 2 + s[1] * t
+            self.box((c[0], y, c[2]), (s[0] + 2 * inflate, height, s[2] + 2 * inflate), mat)
+
+    def joint_knob(self, part, r, mat, which="both"):
+        """Spheres on the capsule ends (elbows / knees / bony joints)."""
+        top, bottom = capsule_ends(part)
+        if which in ("both", "top"):
+            self.sphere(top, r, mat, segs=6, rings=4)
+        if which in ("both", "bottom"):
+            self.sphere(bottom, r, mat, segs=6, rings=4)
 
 
 # ----------------------------------------------------------------------------- creature looks
@@ -361,7 +394,612 @@ def look_chicken(b, part, spec):
         look_default(b, part, spec)
 
 
-LOOKS = {"knight": look_knight, "goblin": look_goblin, "wolf": look_wolf, "chicken": look_chicken}
+# ----------------------------------------------------------------------------- shared biped helpers
+
+def head_dims(part):
+    """(center, half x, half y, half z) of a head part regardless of shape."""
+    c, s = part["pos"], part["size"]
+    if part["shape"] == "box":
+        return c, s[0] / 2, s[1] / 2, s[2] / 2
+    return c, s[0], s[0], s[0]
+
+
+def limb_material(name, mats):
+    """Material for a standard biped limb part from a dict keyed by role prefix, else None."""
+    for key in ("upperArm", "lowerArm", "hand", "upperLeg", "lowerLeg", "foot"):
+        if name.startswith(key):
+            return mats.get(key)
+    return None
+
+
+def plain_limb(b, part, mats, inflate=0.0, toe=None):
+    """Draw a standard biped limb as its collider in a per-role material. Returns True if handled."""
+    name = part["name"]
+    mat = limb_material(name, mats)
+    if mat is None:
+        return False
+    b.collider(part, mat, inflate=inflate)
+    if name.startswith("foot") and toe:
+        c, s = part["pos"], part["size"]
+        b.sphere(v(c, (s[0] / 2 - s[2] * 0.2, 0, 0)), s[2] * 0.32, toe, scale=(1, 0.9, 1.4), segs=6, rings=4)
+    return True
+
+
+def cape(b, torso, mat, collar=None, drop=0.3, width_pad=0.06):
+    """Thin cloth box hanging from the back of a torso part (drawn as part of the torso chunk)."""
+    c, s = torso["pos"], torso["size"]
+    length = s[1] + drop
+    b.box((c[0] - s[0] / 2 - 0.02, c[1] + s[1] / 2 - length / 2, c[2]), (0.03, length, s[2] + width_pad), mat)
+    if collar:
+        b.box((c[0] - 0.02, c[1] + s[1] / 2 + 0.005, c[2]), (s[0] - 0.02, 0.03, s[2] + width_pad), collar)
+
+
+def lightning_bolt(b, center, mat, height=0.16, thick=0.012, axis="x"):
+    """Zig-zag bolt of three flat boxes lying on a face whose normal is `axis` ('x' or 'z')."""
+    seg = height * 0.42
+    w = height * 0.22
+    for i, (dy, dz, ang) in enumerate(((0.36, 0.15, 30), (0.0, -0.1, -30), (-0.36, 0.15, 30))):
+        off_y = dy * height
+        off_w = dz * height
+        if axis == "x":
+            b.box((center[0], center[1] + off_y, center[2] + off_w), (thick, seg, w), mat, rot=[ang, 0, 0])
+        else:
+            b.box((center[0] + off_w, center[1] + off_y, center[2]), (w, seg, thick), mat, rot=[0, 0, -ang])
+
+
+def ragged_hem(b, part, mat, length=0.07, r=0.03, count=6, pad=0.02):
+    """Downward spikes around the bottom edge of a box part (torn tunic / loincloth)."""
+    c, s = part["pos"], part["size"]
+    hem = -s[1] / 2 + 0.03
+    pts = [(s[0] / 2 + pad, 0.0), (-s[0] / 2 - pad, 0.0), (0.0, s[2] / 2 + pad), (0.0, -s[2] / 2 - pad),
+           (s[0] * 0.25, s[2] / 2 + pad), (-s[0] * 0.25, -s[2] / 2 - pad)]
+    for (x, z) in pts[:count]:
+        b.spike(v(c, (x, hem, z)), (0, -1, 0), length, r, mat)
+
+
+# ----------------------------------------------------------------------------- base creatures
+
+def look_farmer(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "overalls")
+    elif name == "torso":
+        b.collider(part, "shirt")
+        b.box(v(c, (s[0] / 2, -0.03, 0)), (0.03, s[1] * 0.8, s[2] * 0.7), "overalls")  # bib
+        b.box(v(c, (-s[0] / 2, -0.03, 0)), (0.03, s[1] * 0.8, s[2] * 0.7), "overalls")  # back
+        for z in (-0.06, 0.06):
+            b.box(v(c, (0, s[1] / 2, z)), (s[0] + 0.02, 0.025, 0.04), "overallsDark")  # straps
+        for z in (-0.06, 0.06):
+            b.sphere(v(c, (s[0] / 2 + 0.01, s[1] * 0.28, z)), 0.014, "hatDark", segs=6, rings=4)  # buttons
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "skin")
+        b.box(v(c, (0.02, -hy + 0.03, 0)), (hx * 2 + 0.03, 0.09, hz * 2 + 0.03), "beard")  # beard block
+        b.sphere(v(c, (hx, 0.0, 0)), 0.03, "skin", segs=6, rings=4)  # nose
+        b.eyes(c, hx * 0.35, hy * 0.25, hz, 0.024)
+        b.front_eyes(c, hx, hy * 0.25, 0.06, 0.02)
+        b.cone(v(c, (0, hy + 0.012, 0)), 0.18, 0.18, 0.02, "hat", segs=10)  # straw brim
+        b.cone(v(c, (0, hy + 0.06, 0)), 0.13, 0.11, 0.08, "hat", segs=10)  # crown
+        b.cone(v(c, (0, hy + 0.035, 0)), 0.135, 0.135, 0.02, "hatDark", segs=10)  # hat band
+    elif not plain_limb(b, part, {"upperArm": "shirt", "lowerArm": "shirt", "hand": "skin", "upperLeg": "overalls",
+                                  "lowerLeg": "overalls", "foot": "boots"}, toe="boots"):
+        look_default(b, part, spec)
+
+
+def look_kid(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "shorts")
+    elif name == "torso":
+        b.collider(part, "shirt")
+        b.slabs(part, "stripe", 3, height=0.035, start=0.2, end=0.8)
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "skin")
+        b.eyes(c, hx * 0.35, hy * 0.1, hz, 0.03)
+        b.front_eyes(c, hx, hy * 0.1, 0.06, 0.026)
+        b.sphere(v(c, (hx, -hy * 0.15, 0)), 0.018, "skin", segs=6, rings=4)  # nose
+        b.box(v(c, (hx, -hy * 0.5, 0)), (0.015, 0.02, 0.08), "stripe")  # grin
+        b.sphere(v(c, (0, hy - 0.03, 0)), hx + 0.012, "cap", scale=(1.0, 0.45, 1.0))  # cap dome
+        b.box(v(c, (-hx - 0.05, hy - 0.01, 0)), (0.12, 0.018, hz * 1.5), "capDark")  # backwards brim
+        b.box(v(c, (hx, hy - 0.06, 0)), (0.02, 0.05, hz * 1.8), "hair")  # fringe
+        for sgn in (-1, 1):
+            b.box(v(c, (0.02, hy - 0.06, sgn * hz)), (hx * 1.6, 0.05, 0.02), "hair")
+    elif name.startswith("foot"):
+        b.box(v(c, (0, 0.012, 0)), (s[0], s[1] - 0.024, s[2]), "sneaker")
+        b.box(v(c, (0, -s[1] / 2 + 0.012, 0)), (s[0] + 0.01, 0.024, s[2] + 0.01), "sneakerSole")
+        b.sphere(v(c, (s[0] / 2 - 0.02, 0.005, 0)), s[2] * 0.36, "sneaker", scale=(1, 0.8, 1.3), segs=6, rings=4)
+        b.box(v(c, (s[0] / 2 - 0.045, s[1] / 2, 0)), (0.05, 0.012, s[2] * 0.6), "stripe")  # laces
+    elif not plain_limb(b, part, {"upperArm": "shirt", "lowerArm": "skin", "hand": "skin", "upperLeg": "shorts",
+                                  "lowerLeg": "skin"}):
+        look_default(b, part, spec)
+
+
+def look_giant(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "tunicDark")
+        ragged_hem(b, part, "tunicDark", length=0.16, r=0.06, pad=0.03)
+    elif name == "torso":
+        b.collider(part, "skin")
+        b.box(v(c, (0, -0.05, 0)), (s[0] + 0.06, s[1] - 0.1, s[2] + 0.06), "tunic")  # ragged tunic, one shoulder bare
+        b.box(v(c, (0, s[1] / 2 - 0.08, -s[2] * 0.3)), (s[0] + 0.06, 0.16, s[2] * 0.4), "tunic")  # strap over the left shoulder
+        ragged_hem(b, part, "tunic", length=0.18, r=0.07, pad=0.04)
+        b.box(v(c, (s[0] / 2 + 0.03, -0.1, 0)), (0.03, 0.06, s[2] * 0.7), "boots")  # rope belt
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "skin")
+        b.box(v(c, (hx, hy * 0.28, 0)), (0.04, 0.07, hz * 1.7), "brow")  # unibrow, front
+        for sgn in (-1, 1):
+            b.box(v(c, (hx * 0.45, hy * 0.28, sgn * hz)), (hx * 1.1, 0.07, 0.04), "brow")  # wraps the sides
+            b.sphere(v(c, (-hx * 0.4, 0.0, sgn * hz)), 0.07, "skin", scale=(0.6, 1, 0.5), segs=6, rings=4)  # ears
+        b.eyes(c, hx * 0.4, hy * 0.02, hz, 0.05)
+        b.front_eyes(c, hx, hy * 0.02, 0.11, 0.045)
+        b.sphere(v(c, (hx, -hy * 0.2, 0)), 0.08, "skinDark", segs=6, rings=4)  # big nose
+        b.box(v(c, (hx, -hy * 0.6, 0)), (0.03, 0.03, hz * 1.1), "brow")  # frown
+    elif name.startswith("hand"):
+        b.collider(part, "skin")
+        for z in (-0.06, 0.0, 0.06):
+            b.sphere(v(c, (s[0] * 0.75, -s[0] * 0.45, z)), 0.05, "skinDark", segs=6, rings=4)  # knuckles
+    elif name.startswith("foot"):
+        b.collider(part, "skinDark")
+        for z in (-s[2] * 0.3, 0.0, s[2] * 0.3):
+            b.sphere(v(c, (s[0] / 2, -0.02, z)), 0.06, "skin", segs=6, rings=4)  # toes
+    elif not plain_limb(b, part, {"upperArm": "skin", "lowerArm": "skin", "upperLeg": "skin", "lowerLeg": "skin"}):
+        look_default(b, part, spec)
+
+
+def look_skeleton(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.box(c, (s[0] * 0.9, s[1] * 0.8, s[2] * 0.7), "boneDark")
+        for sgn in (-1, 1):
+            b.sphere(v(c, (sgn * s[0] * 0.42, 0.0, 0)), 0.07, "bone", scale=(0.8, 1, 1), segs=6, rings=4)  # hip bones
+    elif name == "torso":
+        b.box(c, (s[0] * 0.55, s[1] * 0.95, s[2] * 0.5), "socket")  # dark hollow inside the ribcage
+        b.box(v(c, (-s[0] / 2 + 0.03, 0, 0)), (0.06, s[1], 0.06), "bone")  # spine
+        b.box(v(c, (0, s[1] / 2 - 0.02, 0)), (s[0], 0.04, s[2]), "bone")  # collar bones
+        b.slabs(part, "ribs", 4, inflate=0.0, height=0.028, start=0.12, end=0.72)
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.sphere(c, hx * 1.05, "bone", scale=(1.0, hy / hx * 1.05, hz / hx))  # cranium
+        b.box(v(c, (hx * 0.35, -hy * 0.8, 0)), (hx * 1.3, hy * 0.45, hz * 1.5), "bone")  # jaw
+        b.eyes(c, hx * 0.35, hy * 0.1, hz * 0.98, 0.045, white=False, pupil_mat="socket")
+        b.front_eyes(c, hx * 0.9, hy * 0.1, 0.06, 0.035, white_mat="socket", pupil_mat="socket")
+        b.spike(v(c, (hx * 0.95, -hy * 0.35, 0)), (0, 1, 0), 0.05, 0.02, "socket", segs=4)  # nose hole
+        b.box(v(c, (hx * 1.0, -hy * 0.65, 0)), (0.02, 0.02, hz * 1.2), "socket")  # mouth gap
+        for z in (-0.06, -0.02, 0.02, 0.06):
+            b.box(v(c, (hx * 1.0, -hy * 0.65, z)), (0.024, 0.03, 0.012), "bone")  # teeth
+    elif name.startswith("foot"):
+        b.box(v(c, (0, -0.01, 0)), (s[0], s[1] * 0.55, s[2] * 0.6), "bone")
+        for z in (-0.03, 0.0, 0.03):
+            b.spike(v(c, (s[0] / 2, -0.01, z)), (1, 0, 0), 0.03, 0.012, "bone")  # toes
+    elif name.startswith("hand"):
+        b.collider(part, "bone")
+    else:
+        mat = limb_material(name, {"upperArm": "bone", "lowerArm": "bone", "upperLeg": "bone", "lowerLeg": "bone"})
+        if mat is None:
+            return look_default(b, part, spec)
+        b.collider(part, mat)
+        b.joint_knob(part, s[0] * 1.5, "boneDark", which="both")  # knobbly joint ends
+
+
+def look_slime(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "body":
+        r = s[0]
+        b.sphere(c, r, "goo", scale=(1.0, 0.95, 1.0))
+        b.sphere(v(c, (0, -r * 0.55, 0)), r * 0.9, "gooDark", scale=(1.15, 0.45, 1.15))  # squashed base
+        b.sphere(v(c, (r * 0.3, r * 0.6, r * 0.45)), r * 0.2, "gooLight", scale=(1.2, 0.6, 1.0), segs=6, rings=4)  # highlight
+    elif name == "head":
+        r = s[0]
+        b.sphere(c, r, "goo", scale=(1.0, 0.9, 1.0))
+        b.eyes(c, r * 0.35, r * 0.15, r * 0.82, 0.05)
+        b.front_eyes(c, r * 0.85, r * 0.15, 0.06, 0.045)
+        b.box(v(c, (r * 0.95, -r * 0.35, 0)), (0.02, 0.03, 0.1), "mouth")  # mouth
+        b.sphere(v(c, (-r * 0.2, r * 0.95, 0)), r * 0.25, "goo", scale=(1, 0.8, 1), segs=6, rings=4)  # drip on top
+    elif name.startswith("nub"):
+        b.collider(part, "goo")
+        top, _ = capsule_ends(part)
+        b.sphere(top, s[0] * 1.3, "gooLight", segs=6, rings=4)
+    elif name.startswith("upperLeg"):
+        b.collider(part, "gooDark")
+        _, bottom = capsule_ends(part)
+        b.sphere(v(bottom, (0.01, 0.02, 0)), s[0] * 1.6, "gooDark", scale=(1.3, 0.6, 1.1), segs=6, rings=4)  # blobby foot
+    else:
+        look_default(b, part, spec)
+
+
+# ----------------------------------------------------------------------------- heroes pack
+
+def look_captainzap(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "suitDark")
+        b.box(v(c, (0, s[1] / 2 - 0.02, 0)), (s[0] + 0.02, 0.04, s[2] + 0.02), "bolt")  # belt
+    elif name == "torso":
+        b.collider(part, "suit")
+        lightning_bolt(b, v(c, (s[0] / 2 + 0.008, 0.02, 0)), "bolt", height=0.2, axis="x")
+        for sgn in (-1, 1):
+            lightning_bolt(b, v(c, (0.0, 0.02, sgn * (s[2] / 2 + 0.008))), "bolt", height=0.14, axis="z")
+        cape(b, part, "cape", collar="cape", drop=0.32)
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "skin")
+        b.box(v(c, (hx + 0.002, hy * 0.15, 0)), (0.015, 0.07, hz * 2 + 0.03), "mask")  # domino mask front
+        for sgn in (-1, 1):
+            b.box(v(c, (0.02, hy * 0.15, sgn * (hz + 0.002))), (hx * 1.7, 0.07, 0.015), "mask")  # and sides
+        b.eyes(c, hx * 0.35, hy * 0.15, hz + 0.008, 0.025)
+        b.front_eyes(c, hx + 0.01, hy * 0.15, 0.055, 0.02)
+        b.box(v(c, (0, hy, 0)), (hx * 1.8, 0.04, hz * 2 + 0.01), "hair")
+        b.sphere(v(c, (hx * 0.7, hy + 0.04, 0)), 0.05, "hair", scale=(1.2, 0.8, 1.0), segs=6, rings=4)  # quiff
+        b.box(v(c, (hx, -hy * 0.55, 0)), (0.015, 0.015, 0.07), "mask")  # confident grin
+        b.box(v(c, (hx * 0.6, -hy * 0.9, 0)), (hx * 1.0, 0.03, hz * 1.4), "skin")  # chin
+    elif not plain_limb(b, part, {"upperArm": "suit", "lowerArm": "suit", "hand": "bolt", "upperLeg": "suit",
+                                  "lowerLeg": "suit", "foot": "boots"}, toe="boots"):
+        look_default(b, part, spec)
+
+
+def look_rocketgirl(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "suitDark")
+    elif name == "torso":
+        b.collider(part, "suit")
+        b.box(v(c, (s[0] / 2, s[1] * 0.2, 0)), (0.02, 0.06, s[2] * 0.6), "helmet")  # chest panel
+        for z in (-0.07, 0.07):
+            b.box(v(c, (0, s[1] / 2 - 0.02, z)), (s[0] + 0.02, 0.03, 0.04), "jetDark")  # straps
+            base = v(c, (-s[0] / 2 - 0.07, -0.02, z))
+            b.cone(base, 0.05, 0.05, 0.3, "jet", segs=8)  # jetpack tanks
+            b.cone(v(base, (0, 0.17, 0)), 0.05, 0.03, 0.04, "jetDark", segs=8)  # cap
+            b.cone(v(base, (0, -0.18, 0)), 0.06, 0.045, 0.06, "jetDark", segs=8)  # nozzle
+            b.cone(v(base, (0, -0.25, 0)), 0.02, 0.045, 0.08, "flame", segs=6)  # little flame
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        r = hx * 1.22
+        b.sphere(c, r, "helmet", scale=(1.0, hy / hx * 1.15, hz / hx * 1.05))
+        b.box(v(c, (r * 0.8, 0.02, 0)), (0.06, 0.11, hz * 1.5), "visor")  # visor front
+        for sgn in (-1, 1):
+            b.box(v(c, (0.04, 0.02, sgn * (r * 0.9))), (hx * 1.4, 0.11, 0.03), "visor")  # visor wraps the sides
+        b.eyes(c, hx * 0.35, 0.03, r * 0.9 + 0.01, 0.022)
+        b.front_eyes(c, r * 0.8 + 0.02, 0.03, 0.05, 0.02)
+        b.box(v(c, (r * 0.4, 0.02, 0)), (r, 0.02, hz * 2 + 0.05), "suit")  # red visor rim
+        b.sphere(v(c, (-r * 0.5, r * 0.6, 0)), 0.04, "suit", segs=6, rings=4)  # antenna nub
+    elif not plain_limb(b, part, {"upperArm": "suit", "lowerArm": "suit", "hand": "gloves", "upperLeg": "suit",
+                                  "lowerLeg": "suitDark", "foot": "gloves"}, toe="gloves"):
+        look_default(b, part, spec)
+
+
+def look_drskull(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "black")
+    elif name == "torso":
+        b.collider(part, "black")
+        drop = 0.16
+        length = s[1] + drop
+        yc = c[1] + s[1] / 2 - length / 2
+        b.box((c[0] - s[0] / 2 - 0.005, yc, c[2]), (0.03, length, s[2] + 0.05), "coat")  # back panel
+        for sgn in (-1, 1):
+            b.box((c[0], yc, c[2] + sgn * (s[2] / 2 + 0.012)), (s[0] + 0.03, length, 0.03), "coat")  # side panels
+            b.box((c[0] + s[0] / 2 + 0.005, yc, c[2] + sgn * (s[2] * 0.28)), (0.03, length, s[2] * 0.44), "coat")  # open front
+            b.box((c[0] + s[0] / 2 + 0.02, c[1] + s[1] * 0.3, c[2] + sgn * (s[2] * 0.2)), (0.02, 0.1, 0.05), "coatDark",
+                  rot=[sgn * 25, 0, 0])  # lapels
+        b.box(v(c, (s[0] / 2 + 0.03, -0.02, 0)), (0.02, 0.05, 0.04), "lens")  # glowing vial in the pocket
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.sphere(c, hx * 1.05, "skull", scale=(1.0, hy / hx * 1.05, hz / hx))
+        b.box(v(c, (hx * 0.35, -hy * 0.8, 0)), (hx * 1.3, hy * 0.45, hz * 1.4), "skull")  # jaw
+        b.box(v(c, (0, hy * 0.2, 0)), (hx * 2 + 0.03, 0.05, hz * 2 + 0.03), "black")  # goggle strap
+        for sgn in (-1, 1):
+            p = v(c, (hx * 0.35, hy * 0.2, sgn * (hz + 0.01)))
+            b.cone(p, 0.05, 0.05, 0.03, "goggle", rot=[90, 0, 0], segs=8)  # goggle rims on the sides
+            b.cone(v(p, (0, 0, sgn * 0.018)), 0.038, 0.038, 0.012, "lens", rot=[90, 0, 0], segs=8)
+        for sgn in (-1, 1):
+            p = v(c, (hx * 1.0, hy * 0.2, sgn * 0.06))
+            b.cone(p, 0.045, 0.045, 0.03, "goggle", rot=[0, 0, -90], segs=8)  # and on the front
+            b.cone(v(p, (0.018, 0, 0)), 0.034, 0.034, 0.012, "lens", rot=[0, 0, -90], segs=8)
+        b.box(v(c, (hx * 1.0, -hy * 0.55, 0)), (0.02, 0.02, hz * 1.1), "socket")  # grin gap
+        for z in (-0.05, -0.017, 0.017, 0.05):
+            b.box(v(c, (hx * 1.0, -hy * 0.55, z)), (0.024, 0.03, 0.012), "skull")  # teeth
+    elif not plain_limb(b, part, {"upperArm": "coat", "lowerArm": "coat", "hand": "gloves", "upperLeg": "black",
+                                  "lowerLeg": "black", "foot": "black"}):
+        look_default(b, part, spec)
+
+
+def look_robobrute(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "metalDark")
+        b.box(v(c, (0, 0, 0)), (s[0] * 0.6, s[1] + 0.02, s[2] * 0.6), "metal")  # hip block
+    elif name == "torso":
+        b.collider(part, "metal")
+        b.box(v(c, (s[0] / 2, 0.02, 0)), (0.04, s[1] * 0.7, s[2] * 0.75), "metalLight")  # chest plate
+        b.box(v(c, (s[0] / 2 + 0.02, -0.05, 0)), (0.02, 0.05, s[2] * 0.4), "eyeRed")  # warning light strip
+        for sgn in (-1, 1):
+            b.box(v(c, (0, s[1] / 2 + 0.03, sgn * (s[2] / 2 - 0.04))), (s[0] * 0.8, 0.08, 0.1), "metalDark")  # shoulder blocks
+            for x in (-s[0] * 0.3, s[0] * 0.3):
+                b.sphere(v(c, (x, s[1] * 0.3, sgn * (s[2] / 2 + 0.005))), 0.03, "metalDark", segs=6, rings=4)  # rivets
+        b.box(v(c, (-s[0] / 2 - 0.03, 0, 0)), (0.06, s[1] * 0.6, s[2] * 0.6), "metalDark")  # back vent box
+        b.slabs(part, "metalDark", 2, inflate=0.005, height=0.02, start=0.3, end=0.6)
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "metal")
+        b.box(v(c, (hx + 0.006, hy * 0.15, 0)), (0.015, 0.06, hz * 1.75), "eyeRed")  # glowing eye slit, front
+        for sgn in (-1, 1):
+            b.box(v(c, (hx * 0.4, hy * 0.15, sgn * (hz + 0.006))), (hx * 1.2, 0.06, 0.015), "eyeRed")  # wraps the sides
+        b.box(v(c, (hx + 0.004, -hy * 0.5, 0)), (0.012, 0.07, hz * 1.4), "metalDark")  # mouth grille
+        for z in (-hz * 0.45, -hz * 0.15, hz * 0.15, hz * 0.45):
+            b.box(v(c, (hx + 0.01, -hy * 0.5, z)), (0.012, 0.07, 0.012), "metalLight")
+        b.box(v(c, (0, hy + 0.01, 0)), (hx * 1.6, 0.03, hz * 1.6), "metalDark")  # head plate
+        base = v(c, (-hx * 0.3, hy + 0.02, 0))
+        b.cone(v(base, (0, 0.13, 0)), 0.018, 0.012, 0.26, "metalDark", segs=6)  # antenna
+        b.sphere(v(base, (0, 0.28, 0)), 0.045, "eyeRed", segs=6, rings=4)
+        for sgn in (-1, 1):
+            b.box(v(c, (-hx * 0.5, 0, sgn * (hz + 0.01))), (0.1, hy * 0.8, 0.03), "metalDark")  # side vents
+    elif name.startswith("hand"):
+        b.box(v(c, (0, s[1] / 2 - 0.03, 0)), (s[0], 0.06, s[2]), "metalDark")  # wrist block
+        b.box(v(c, (s[0] / 2 - 0.03, -0.03, 0)), (0.06, s[1] - 0.06, s[2] * 0.8), "metal")  # front prong
+        b.box(v(c, (-s[0] / 2 + 0.03, -0.03, 0)), (0.06, s[1] - 0.06, s[2] * 0.8), "metal")  # back prong
+        b.box(v(c, (s[0] / 2 - 0.03, -s[1] / 2 + 0.02, 0)), (0.08, 0.04, s[2] * 0.6), "metalLight")  # pincer tips
+        b.box(v(c, (-s[0] / 2 + 0.03, -s[1] / 2 + 0.02, 0)), (0.08, 0.04, s[2] * 0.6), "metalLight")
+    elif name.startswith("foot"):
+        b.collider(part, "metalDark")
+        b.box(v(c, (s[0] / 2 - 0.04, 0.01, 0)), (0.08, s[1] + 0.02, s[2] + 0.02), "metalLight")  # toe cap
+    else:
+        mats = {"upperArm": "metal", "lowerArm": "metalLight", "upperLeg": "metal", "lowerLeg": "metalLight"}
+        mat = limb_material(name, mats)
+        if mat is None:
+            return look_default(b, part, spec)
+        r, length = s[0], s[1]
+        b.box(c, (r * 2, length + r * 1.6, r * 2), mat)  # boxy limb over the capsule collider
+        b.joint_knob(part, r * 0.9, "rubber", which="both")
+        b.box(c, (r * 2.1, 0.03, r * 2.1), "metalDark")  # ring around the middle
+
+
+# ----------------------------------------------------------------------------- monsters pack
+
+def look_cyclops(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "clothDark")
+        b.box(v(c, (0, s[1] / 2 - 0.02, 0)), (s[0] + 0.03, 0.05, s[2] + 0.03), "cloth")  # belt
+        ragged_hem(b, part, "clothDark", length=0.14, r=0.05, pad=0.03)
+    elif name == "torso":
+        b.collider(part, "skin")
+        for sgn in (-1, 1):
+            b.sphere(v(c, (s[0] / 2 - 0.02, s[1] * 0.2, sgn * s[2] * 0.25)), 0.09, "skin", scale=(0.6, 1, 1), segs=6, rings=4)  # pecs
+        b.sphere(v(c, (s[0] / 2 - 0.05, -s[1] * 0.25, 0)), 0.15, "skinDark", scale=(0.6, 1, 1.2), segs=6, rings=4)  # belly
+        b.box(v(c, (0.0, -s[1] / 2 + 0.02, 0)), (s[0] + 0.03, 0.05, s[2] + 0.03), "cloth")  # loincloth top
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "skin")
+        eye = v(c, (hx - 0.01, hy * 0.15, 0))
+        b.sphere(eye, 0.115, "eyeWhite", segs=8, rings=5)  # one huge eye bulging out of the face
+        b.sphere(v(eye, (0.07, 0, 0)), 0.065, "iris", segs=6, rings=4)
+        b.sphere(v(eye, (0.11, 0, 0)), 0.035, "eye", segs=6, rings=4)
+        b.box(v(c, (hx + 0.03, hy * 0.15 + 0.1, 0)), (0.12, 0.035, 0.24), "skinDark", rot=[0, 0, 10])  # heavy brow / lid
+        b.cone(v(c, (hx * 0.3, hy + 0.06, 0)), 0.06, 0.012, 0.16, "horn", segs=6)  # horn nub
+        b.box(v(c, (hx, -hy * 0.55, 0)), (0.03, 0.03, hz * 1.2), "eye")  # mouth
+        for z in (-0.07, 0.07):
+            b.spike(v(c, (hx, -hy * 0.55, z)), (0, 1, 0), 0.06, 0.022, "horn")  # tusks
+        for sgn in (-1, 1):
+            b.spike(v(c, (-hx * 0.4, hy * 0.2, sgn * hz * 0.85)), (-0.35, 0.85, sgn * 0.3), 0.18, 0.05, "skin")  # pointy ears
+    elif name.startswith("foot"):
+        b.collider(part, "skinDark")
+        for z in (-s[2] * 0.3, 0.0, s[2] * 0.3):
+            b.sphere(v(c, (s[0] / 2, -0.01, z)), 0.045, "skin", segs=6, rings=4)
+    elif not plain_limb(b, part, {"upperArm": "skin", "lowerArm": "skin", "hand": "skin", "upperLeg": "skin", "lowerLeg": "skinDark"}):
+        look_default(b, part, spec)
+
+
+def look_mummy(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name in ("pelvis", "torso"):
+        b.collider(part, "wrapA")
+        b.slabs(part, "wrapB", 3 if name == "pelvis" else 6, height=0.035, start=0.1, end=0.9)
+        if name == "torso":
+            b.box(v(c, (s[0] / 2 + 0.005, 0.0, 0.02)), (0.02, s[1] * 0.9, 0.05), "wrapDark", rot=[0, 0, 0])  # loose diagonal wrap
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "wrapA")
+        b.slabs(part, "wrapB", 3, height=0.035, start=0.1, end=0.9)
+        b.box(v(c, (0.01, hy * 0.2, 0)), (hx * 2 + 0.02, 0.07, hz * 2 + 0.02), "gap")  # dark gap for the eyes
+        b.eyes(c, hx * 0.35, hy * 0.2, hz + 0.01, 0.03, white=False, pupil_mat="glow")
+        b.front_eyes(c, hx + 0.01, hy * 0.2, 0.055, 0.028, white_mat="glow", pupil_mat="glow")
+        b.spike(v(c, (-hx * 0.2, hy, 0)), (-0.4, 0.5, 0.1), 0.1, 0.02, "wrapB", segs=4)  # loose bandage end
+    elif name.startswith("hand"):
+        b.collider(part, "wrapB")
+        b.spike(v(c, (0.0, -s[0] * 0.5, 0)), (0.3, -1, 0), 0.08, 0.018, "wrapB", segs=4)  # trailing wrap
+    elif name.startswith("foot"):
+        b.collider(part, "wrapA")
+        b.box(v(c, (s[0] * 0.2, 0, 0)), (0.03, s[1] + 0.012, s[2] + 0.012), "wrapB")
+        b.box(v(c, (-s[0] * 0.2, 0, 0)), (0.03, s[1] + 0.012, s[2] + 0.012), "wrapB")
+    else:
+        mat = limb_material(name, {"upperArm": "wrapA", "lowerArm": "wrapA", "upperLeg": "wrapA", "lowerLeg": "wrapA"})
+        if mat is None:
+            return look_default(b, part, spec)
+        b.collider(part, mat)
+        b.bands(part, "wrapB", 3, width=0.03)
+
+
+def look_yeti(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "fur", inflate=0.02)
+    elif name == "torso":
+        b.collider(part, "fur", inflate=0.025)
+        b.box(v(c, (s[0] / 2 + 0.01, -0.05, 0)), (0.05, s[1] * 0.6, s[2] * 0.6), "furShade")  # belly patch
+        for sgn in (-1, 1):
+            for x in (-s[0] * 0.3, 0.0, s[0] * 0.3):
+                b.spike(v(c, (x, s[1] / 2 + 0.02, sgn * s[2] * 0.4)), (-0.2, 1, sgn * 0.4), 0.09, 0.04, "fur")  # shaggy shoulders
+        for x in (-s[0] * 0.35, -s[0] * 0.1, s[0] * 0.15, s[0] * 0.4):
+            b.spike(v(c, (x, -s[1] / 2 - 0.02, 0)), (0, -1, 0), 0.1, 0.045, "fur")  # shaggy hem
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.collider(part, "fur", inflate=0.02)
+        b.box(v(c, (hx + 0.01, -0.01, 0)), (0.04, hy * 1.2, hz * 1.5), "face")  # dark face patch, front
+        for sgn in (-1, 1):
+            b.box(v(c, (hx * 0.5, -0.01, sgn * (hz + 0.01))), (hx * 1.1, hy * 1.2, 0.04), "face")  # wraps the sides
+        b.eyes(c, hx * 0.5, hy * 0.2, hz + 0.02, 0.028)
+        b.front_eyes(c, hx + 0.02, hy * 0.2, 0.06, 0.025)
+        b.sphere(v(c, (hx + 0.03, -hy * 0.15, 0)), 0.035, "nose", segs=6, rings=4)
+        b.box(v(c, (hx + 0.03, -hy * 0.5, 0)), (0.015, 0.02, 0.12), "nose")  # mouth
+        for z in (-0.04, 0.04):
+            b.box(v(c, (hx + 0.03, -hy * 0.5 - 0.02, z)), (0.02, 0.035, 0.025), "teeth")  # fangs
+        for (dx, dy, z) in ((-0.5, 1, 0), (0, 1, -0.4), (0, 1, 0.4), (0.4, 1, 0)):
+            b.spike(v(c, (dx * 0.1, hy + 0.02, z * hz)), (dx, dy, z), 0.12, 0.045, "fur")  # tufts on top
+    elif name.startswith("foot"):
+        b.collider(part, "fur", inflate=0.015)
+        for z in (-s[2] * 0.32, 0.0, s[2] * 0.32):
+            b.sphere(v(c, (s[0] / 2 + 0.01, -0.01, z)), 0.045, "face", segs=6, rings=4)  # dark toes
+    elif name.startswith("hand"):
+        b.collider(part, "fur", inflate=0.02)
+        b.sphere(v(c, (s[0] * 0.6, -s[0] * 0.4, 0)), s[0] * 0.6, "face", segs=6, rings=4)  # dark palm
+    else:
+        mat = limb_material(name, {"upperArm": "fur", "lowerArm": "fur", "upperLeg": "fur", "lowerLeg": "fur"})
+        if mat is None:
+            return look_default(b, part, spec)
+        b.collider(part, mat, inflate=0.025)
+        _, bottom = capsule_ends(part)
+        for z in (-s[0] * 0.5, s[0] * 0.5):
+            b.spike(v(bottom, (0.0, s[0] * 0.5, z)), (0.2, -1, 0), 0.08, 0.035, "furShade")  # shaggy fringe
+
+
+def look_firelizard(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "scales")
+        b.box(v(c, (0, -s[1] / 2 + 0.04, 0)), (s[0] - 0.05, 0.08, s[2] + 0.02), "belly")
+        for x in (-0.1, 0.08):
+            b.spike(v(c, (x, s[1] / 2 - 0.02, 0)), (-0.35, 1, 0), 0.16, 0.05, "spikes")  # spine spikes
+    elif name == "chest":
+        b.collider(part, "scales")
+        b.box(v(c, (0, -s[1] / 2 + 0.04, 0)), (s[0] - 0.08, 0.08, s[2] + 0.02), "belly")
+        for x in (-0.28, -0.08, 0.12, 0.3):
+            b.spike(v(c, (x, s[1] / 2 - 0.02, 0)), (-0.35, 1, 0), 0.18, 0.055, "spikes")
+        for sgn in (-1, 1):
+            zz = sgn * (s[2] / 2 + 0.01)
+            # stub wings: one fin rooted in the back, sweeping up and backwards, with a claw on the tip
+            b.box(v(c, (-0.14, s[1] / 2 + 0.05, zz)), (0.42, 0.24, 0.02), "wing", rot=[sgn * 18, 0, -35])
+            b.box(v(c, (-0.2, s[1] / 2 + 0.14, zz + sgn * 0.012)), (0.36, 0.045, 0.02), "wingBone", rot=[sgn * 18, 0, -35])
+            b.spike(v(c, (-0.36, s[1] / 2 + 0.26, zz)), (-0.5, 0.85, 0), 0.07, 0.022, "spikes")  # wing claw
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        skull_len = hx * 1.1
+        b.box(v(c, (-(hx * 2 - skull_len) / 2, 0.03, 0)), (skull_len, hy * 2 - 0.06, hz * 2), "scales")  # skull
+        snout = v(c, (hx - skull_len * 0.45, -0.05, 0))
+        b.box(snout, (skull_len * 0.95, hy * 1.2, hz * 1.6), "scales")
+        b.box(v(snout, (0.0, -hy * 0.7, 0)), (skull_len * 0.9, 0.06, hz * 1.4), "scalesDark")  # lower jaw
+        b.box(v(snout, (skull_len * 0.4, -hy * 0.55, 0)), (0.1, 0.02, 0.05), "tongue")
+        for x in (-0.08, 0.02, 0.12):
+            for sgn in (-1, 1):
+                b.spike(v(snout, (x, -hy * 0.45, sgn * hz * 0.6)), (0, -1, 0), 0.05, 0.016, "spikes")  # teeth
+        b.eyes(c, hx * 0.1, hy * 0.35, hz, 0.045, white_mat="eyeGlow")
+        for sgn in (-1, 1):
+            b.spike(v(c, (-hx * 0.7, hy * 0.6, sgn * hz * 0.6)), (-0.8, 0.6, sgn * 0.2), 0.2, 0.045, "spikes")  # back horns
+        b.spike(v(c, (hx * 0.3, hy * 0.9, 0)), (-0.3, 1, 0), 0.12, 0.04, "spikes")  # crest
+    elif name == "tail":
+        b.collider(part, "scales")
+        top, bottom = capsule_ends(part)
+        for t in (0.2, 0.45, 0.7):
+            p = top.lerp(bottom, t)
+            b.spike(v(p, (0, s[0] * 0.8, 0)), (-0.3, 1, 0), 0.12, 0.04, "spikes")
+        b.spike(v(bottom, (0.03, 0.02, 0)), (-1, -0.15, 0), 0.18, s[0] * 0.9, "scalesDark")  # tail tip
+    elif name.startswith("upperLeg"):
+        b.collider(part, "scales")
+        top, _ = capsule_ends(part)
+        b.sphere(v(top, (0, -0.03, 0)), s[0] * 1.5, "scales", scale=(1, 1.1, 0.9), segs=6, rings=4)  # thigh
+    elif name.startswith("lowerLeg"):
+        b.collider(part, "scalesDark")
+        _, bottom = capsule_ends(part)
+        b.sphere(v(bottom, (0.02, 0.02, 0)), s[0] * 1.2, "scalesDark", scale=(1.3, 0.7, 1), segs=6, rings=4)  # foot
+        for z in (-0.04, 0.0, 0.04):
+            b.spike(v(bottom, (s[0] * 0.9, 0.0, z)), (1, -0.2, 0), 0.06, 0.018, "spikes")  # claws
+    else:
+        look_default(b, part, spec)
+
+
+# ----------------------------------------------------------------------------- space pack
+
+def look_astronaut(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "suit", inflate=0.01)
+        b.box(v(c, (0, s[1] / 2 - 0.03, 0)), (s[0] + 0.03, 0.05, s[2] + 0.03), "trim")  # belt
+    elif name == "torso":
+        b.collider(part, "suit", inflate=0.015)
+        b.box(v(c, (s[0] / 2 + 0.01, s[1] * 0.15, 0)), (0.04, 0.1, s[2] * 0.6), "trim")  # chest control box
+        for z in (-0.04, 0.0, 0.04):
+            b.sphere(v(c, (s[0] / 2 + 0.03, s[1] * 0.15, z)), 0.015, "visor", segs=6, rings=4)  # buttons
+        b.box(v(c, (-s[0] / 2 - 0.08, 0.0, 0)), (0.16, s[1] * 0.95, s[2] * 0.9), "pack")  # life-support backpack
+        b.box(v(c, (-s[0] / 2 - 0.17, 0.0, 0)), (0.02, s[1] * 0.6, s[2] * 0.6), "packDark")
+        for z in (-0.07, 0.07):
+            b.box(v(c, (0, s[1] / 2 + 0.01, z)), (s[0] + 0.04, 0.04, 0.05), "packDark")  # straps
+        b.box(v(c, (s[0] / 2 + 0.02, -s[1] * 0.2, s[2] * 0.25)), (0.012, 0.045, 0.065), "flagRed")  # flag patch, chest
+        b.box(v(c, (s[0] / 2 + 0.025, -s[1] * 0.2 + 0.012, s[2] * 0.25 - 0.018)), (0.012, 0.02, 0.028), "flagBlue")
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        r = hx * 1.25
+        b.sphere(c, r, "helmet", scale=(1.0, hy / hx * 1.12, hz / hx * 1.05))
+        b.box(v(c, (r * 0.78, 0.01, 0)), (0.07, 0.15, hz * 1.5), "visor")  # gold visor, front
+        for sgn in (-1, 1):
+            b.box(v(c, (0.03, 0.01, sgn * (r * 0.92))), (hx * 1.5, 0.15, 0.03), "visor")  # wraps the sides
+        b.eyes(c, hx * 0.35, 0.03, r * 0.92 + 0.01, 0.02, white=False, pupil_mat="trim")
+        b.box(v(c, (r * 0.35, 0.01, 0)), (r, 0.02, hz * 2 + 0.06), "trim")  # visor rim
+        b.box(v(c, (-r * 0.3, -hy * 1.0, 0)), (hx * 1.5, 0.06, hz * 2.2), "trim")  # neck ring
+    elif name.startswith("upperArm"):
+        b.collider(part, "suit", inflate=0.01)
+        sgn = -1 if part.get("side") == "L" else 1
+        zz = sgn * (s[0] + 0.012)
+        b.box(v(c, (0, 0.02, zz)), (0.06, 0.045, 0.012), "flagRed")  # flag patch on the outer arm
+        b.box(v(c, (-0.017, 0.032, zz + sgn * 0.004)), (0.026, 0.02, 0.012), "flagBlue")
+    elif name.startswith("lowerArm") or name.startswith("upperLeg") or name.startswith("lowerLeg"):
+        b.collider(part, "suit", inflate=0.01)
+        b.bands(part, "suitShade", 2, inflate=0.012, width=0.025, start=0.3, end=0.7)  # puffy suit seams
+        b.joint_knob(part, s[0] * 1.15, "trim", which="top")  # joint rings
+    elif not plain_limb(b, part, {"hand": "suitShade", "foot": "trim"}, toe="trim"):
+        look_default(b, part, spec)
+
+
+def look_moonalien(b, part, spec):
+    name, c, s = part["name"], part["pos"], part["size"]
+    if name == "pelvis":
+        b.collider(part, "suitDark")
+    elif name == "torso":
+        b.collider(part, "suit")
+        b.box(v(c, (0, -s[1] / 2 + 0.02, 0)), (s[0] + 0.02, 0.03, s[2] + 0.02), "suitDark")  # belt
+        b.sphere(v(c, (s[0] / 2, s[1] * 0.15, 0)), 0.03, "ball", segs=6, rings=4)  # chest gem
+    elif name == "head":
+        _, hx, hy, hz = head_dims(part)
+        b.sphere(c, hx * 1.02, "skin", scale=(1.0, hy / hx * 1.02, hz / hx * 1.0))  # bulbous head
+        b.sphere(v(c, (hx * 0.2, hy * 0.35, 0)), hx * 0.8, "skin", scale=(1.0, 0.9, 1.0), segs=8, rings=5)  # big cranium
+        b.cone(v(c, (0, -hy * 0.95, 0)), 0.05, 0.06, hy * 0.5, "skin", segs=8)  # neck down to the collar
+        b.eyes(c, hx * 0.5, 0.02, hz * 0.85, 0.05)  # outer two eyes read from the side
+        b.sphere(v(c, (hx * 0.98, 0.06, 0)), 0.05, "eyeWhite", segs=6, rings=4)  # third eye, front centre
+        b.sphere(v(c, (hx * 0.98 + 0.03, 0.06, 0)), 0.028, "iris", segs=6, rings=4)
+        b.box(v(c, (hx * 0.95, -hy * 0.35, 0)), (0.02, 0.015, 0.08), "skinDark")  # little mouth
+        for sgn in (-1, 1):
+            base = v(c, (-hx * 0.15, hy * 0.85, sgn * hx * 0.3))
+            d = Vector((-0.25, 1.0, sgn * 0.5)).normalized()
+            b.capsule(Vector(base) + d * 0.09, 0.012, 0.16, "antenna", rot=dir_rot(d), segs=6)
+            b.sphere(Vector(base) + d * 0.2, 0.04, "ball", segs=6, rings=4)  # antenna balls
+    elif name.startswith("hand"):
+        b.collider(part, "skin")
+        for i in (-1, 1):
+            b.spike(v(c, (0, -0.01, i * 0.02)), (0.3, -1, 0), 0.04, 0.01, "skin")  # long fingers
+    elif not plain_limb(b, part, {"upperArm": "skin", "lowerArm": "skin", "upperLeg": "suit", "lowerLeg": "skin",
+                                  "foot": "suitDark"}):
+        look_default(b, part, spec)
+
+
+LOOKS = {
+    "knight": look_knight, "goblin": look_goblin, "wolf": look_wolf, "chicken": look_chicken,
+    "farmer": look_farmer, "kid": look_kid, "giant": look_giant, "skeleton": look_skeleton, "slime": look_slime,
+    "captainzap": look_captainzap, "rocketgirl": look_rocketgirl, "drskull": look_drskull, "robobrute": look_robobrute,
+    "cyclops": look_cyclops, "mummy": look_mummy, "yeti": look_yeti, "firelizard": look_firelizard,
+    "astronaut": look_astronaut, "moonalien": look_moonalien,
+}
 
 
 # ----------------------------------------------------------------------------- scene assembly

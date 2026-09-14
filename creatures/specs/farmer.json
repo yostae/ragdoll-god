@@ -1,0 +1,33 @@
+{
+  "id": "farmer",
+  "name": "Farmer",
+  "faction": "human",
+  "enemyFactions": ["monster", "villain", "alien", "wildlife"],
+  "enemies": [],
+  "hp": 90,
+  "walkSpeed": 1.5,
+  "grip": "hand.R",
+  "eyeHeight": 1.639,
+  "standHeight": 0.944,
+  "root": "pelvis",
+  "icon": "👨‍🌾",
+  "blurb": "Salt of the earth, handy with a pitchfork",
+  "palette": {"skin": "#e8b88a", "overalls": "#3b62b5", "overallsDark": "#2b4a8e", "shirt": "#c8392b", "hat": "#d9b45a", "hatDark": "#b08f3e", "beard": "#5a3a22", "boots": "#4a3320"},
+  "parts": [
+    { "name": "pelvis", "parent": null, "shape": "box", "pos": [0.0, 0.944, 0.0], "size": [0.318, 0.199, 0.199], "mass": 9.49, "role": "pelvis" },
+    { "name": "torso", "parent": "pelvis", "shape": "box", "pos": [0.0, 1.243, 0.0], "size": [0.358, 0.398, 0.219], "mass": 16.61, "role": "torso", "joint": {"anchor": [0.0, 1.044, 0.0], "limits": [-20, 20], "stiffness": 80, "damping": 6} },
+    { "name": "head", "parent": "torso", "shape": "box", "pos": [0.0, 1.611, 0.0], "size": [0.259, 0.278, 0.259], "mass": 5.93, "role": "head", "joint": {"anchor": [0.0, 1.462, 0.0], "limits": [-30, 30], "stiffness": 30, "damping": 3} },
+    { "name": "upperArm.L", "parent": "torso", "shape": "capsule", "pos": [-0.219, 1.273, -0.06], "size": [0.06, 0.159], "mass": 2.97, "side": "L", "role": "arm", "joint": {"anchor": [-0.184, 1.376, -0.06], "limits": [-160, 60]} },
+    { "name": "lowerArm.L", "parent": "upperArm.L", "shape": "capsule", "pos": [-0.219, 0.999, -0.06], "size": [0.055, 0.159], "mass": 1.78, "side": "L", "role": "arm", "joint": {"anchor": [-0.219, 1.133, -0.06], "limits": [0, 140]} },
+    { "name": "hand.L", "parent": "lowerArm.L", "shape": "sphere", "pos": [-0.219, 0.815, -0.06], "size": [0.055], "mass": 0.59, "side": "L", "role": "hand", "joint": {"anchor": [-0.219, 0.865, -0.06], "limits": [-30, 30]} },
+    { "name": "upperArm.R", "parent": "torso", "shape": "capsule", "pos": [0.219, 1.273, 0.06], "size": [0.06, 0.159], "mass": 2.97, "side": "R", "role": "arm", "joint": {"anchor": [0.184, 1.376, 0.06], "limits": [-160, 60]} },
+    { "name": "lowerArm.R", "parent": "upperArm.R", "shape": "capsule", "pos": [0.219, 0.999, 0.06], "size": [0.055, 0.159], "mass": 1.78, "side": "R", "role": "arm", "joint": {"anchor": [0.219, 1.133, 0.06], "limits": [0, 140]} },
+    { "name": "hand.R", "parent": "lowerArm.R", "shape": "sphere", "pos": [0.219, 0.815, 0.06], "size": [0.055], "mass": 0.59, "side": "R", "role": "hand", "joint": {"anchor": [0.219, 0.865, 0.06], "limits": [-30, 30]} },
+    { "name": "upperLeg.L", "parent": "pelvis", "shape": "capsule", "pos": [-0.09, 0.676, -0.06], "size": [0.075, 0.249], "mass": 7.12, "side": "L", "role": "leg", "joint": {"anchor": [-0.09, 0.875, -0.06], "limits": [-90, 60], "stiffness": 70, "damping": 5} },
+    { "name": "lowerLeg.L", "parent": "upperLeg.L", "shape": "capsule", "pos": [-0.09, 0.288, -0.06], "size": [0.065, 0.249], "mass": 4.75, "side": "L", "role": "leg", "joint": {"anchor": [-0.09, 0.477, -0.06], "limits": [-130, 0], "stiffness": 60, "damping": 5} },
+    { "name": "foot.L", "parent": "lowerLeg.L", "shape": "box", "pos": [-0.05, 0.045, -0.06], "size": [0.219, 0.089, 0.139], "mass": 1.78, "side": "L", "role": "foot", "joint": {"anchor": [-0.09, 0.099, -0.06], "limits": [-30, 30]} },
+    { "name": "upperLeg.R", "parent": "pelvis", "shape": "capsule", "pos": [0.09, 0.676, 0.06], "size": [0.075, 0.249], "mass": 7.12, "side": "R", "role": "leg", "joint": {"anchor": [0.09, 0.875, 0.06], "limits": [-90, 60], "stiffness": 70, "damping": 5} },
+    { "name": "lowerLeg.R", "parent": "upperLeg.R", "shape": "capsule", "pos": [0.09, 0.288, 0.06], "size": [0.065, 0.249], "mass": 4.75, "side": "R", "role": "leg", "joint": {"anchor": [0.09, 0.477, 0.06], "limits": [-130, 0], "stiffness": 60, "damping": 5} },
+    { "name": "foot.R", "parent": "lowerLeg.R", "shape": "box", "pos": [0.129, 0.045, 0.06], "size": [0.219, 0.089, 0.139], "mass": 1.78, "side": "R", "role": "foot", "joint": {"anchor": [0.09, 0.099, 0.06], "limits": [-30, 30]} }
+  ]
+}

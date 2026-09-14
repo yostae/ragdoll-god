@@ -37,7 +37,24 @@ site in `dist/` that can be dropped on any static host.
 - Camera: drag empty space or right-drag / two fingers to pan, scroll or pinch to zoom, WASD too.
 - Keyboard: Space play/pause, R reset, H hand, X delete, P pin, F flip, Esc back to the hand.
 
-Codes so far: `BIGHEAD`, `MOONWALK`, `SIZEMATTERS`, `PARTYTIME`.
+Worlds: Sunny Meadow, Castle Yard, Icy Cliffs, Volcano Peak (lava hurts and pops you out), Moon
+Base (low gravity), and a Blank Canvas.
+
+Codes so far:
+
+| Code | Unlocks |
+| --- | --- |
+| `BIGHEAD` | Big Heads mod |
+| `MOONWALK` | Moon Gravity and Slow-Mo mods |
+| `SIZEMATTERS` | Tiny Town and Giants mods |
+| `PARTYTIME` | Rainbow Crew and Trampoline World mods |
+| `HEROTIME` | Heroes & Villains creatures: Captain Zap, Rocket Girl, Dr. Skull, Robo-Brute |
+| `MONSTERMASH` | Monster creatures: Cyclops, Mummy, Yeti, Fire Lizard |
+| `MOONBASE` | Space creatures: Astronaut, Moon Alien (plus the Moon Gravity mod) |
+| `WIZARDRY` | Wizard Lab items: Mutation Wand, Body Part Potion |
+
+Base creatures: Knight, Goblin, Wolf, Chicken, Farmer, Kid, Giant, Skeleton, Slime.
+Base items: Bonk Hammer, Grow Wand, Shrink Wand, Transmute Wand, Floaty Feather, Midas Touch.
 
 ## Architecture
 

@@ -148,6 +148,92 @@ export const PRESET_MAPS: MapData[] = [
     ],
   },
   {
+    name: 'Volcano Peak',
+    version: 1,
+    gravity: 9.81,
+    preset: true,
+    sky: '#2b0d12,#ff7a2f',
+    camera: { x: 0, y: 5, zoom: 24 },
+    blocks: [
+      ground(-40, 40, 0, 6, 'obsidian'),
+      // Lava lake in the middle, sunk into the ground.
+      box('obsidian', 0, -0.6, 12, 1.2),
+      box('lava', 0, -0.2, 10, 0.6),
+      // Stepped slopes up to two ledges either side of the lake.
+      ground(-40, -6, 1, 1, 'obsidian'),
+      ground(-40, -9, 2, 1, 'obsidian'),
+      ground(-40, -12, 3, 1, 'obsidian'),
+      ground(6, 40, 1, 1, 'obsidian'),
+      ground(9, 40, 2, 1, 'obsidian'),
+      ground(12, 40, 3, 1, 'obsidian'),
+      // A rickety stone bridge with loose slabs.
+      box('stone', -4, 1.3, 1.6, 0.3, false),
+      box('stone', -1.5, 1.3, 1.6, 0.3, false),
+      box('stone', 1.5, 1.3, 1.6, 0.3, false),
+      box('stone', 4, 1.3, 1.6, 0.3, false),
+      // Lava drips on the right ledge.
+      box('lava', 20, 3.3, 3, 0.6),
+    ],
+    creatures: [
+      { spec: 'knight', x: -14, y: 3, facing: 1, scale: 1 },
+      { spec: 'goblin', x: -8, y: 1, facing: 1, scale: 1 },
+      { spec: 'goblin', x: 9, y: 2, facing: -1, scale: 1 },
+      { spec: 'wolf', x: 16, y: 3, facing: -1, scale: 1 },
+    ],
+    items: [
+      { kind: 'bonkHammer', x: -10, y: 2.6 },
+      { kind: 'feather', x: 8, y: 1.6 },
+    ],
+    decor: [
+      { id: 'volcano', x: 0, y: 3, scale: 1.6 },
+      { id: 'deadtree', x: -20, y: 3, scale: 1.2 },
+      { id: 'deadtree', x: 24, y: 3, scale: 1 },
+      { id: 'rock', x: -7, y: 1, scale: 1 },
+      { id: 'rock', x: 14, y: 3, scale: 0.9 },
+      { id: 'cloud', x: -14, y: 11, scale: 1.2 },
+    ],
+  },
+  {
+    name: 'Moon Base',
+    version: 1,
+    gravity: 1.62,
+    preset: true,
+    sky: '#05060f,#161a3a',
+    camera: { x: 0, y: 5, zoom: 22 },
+    blocks: [
+      ground(-40, 40, 0, 5, 'moonrock'),
+      // Crater rims.
+      box('moonrock', -12, 0.4, 3, 0.8),
+      box('moonrock', 14, 0.4, 4, 0.8),
+      // Loose moon boulders: light gravity makes them fun to fling.
+      box('moonrock', -4, 0.6, 1.2, 1.2, false),
+      box('moonrock', 5, 0.5, 1, 1, false),
+      box('moonrock', 6, 1.5, 1, 1, false),
+      box('iron', 0, 0.75, 1.5, 1.5, false),
+      // A bouncy landing pad.
+      box('bouncy', 22, 0.4, 5, 0.8),
+    ],
+    creatures: [
+      { spec: 'knight', x: -6, y: 0, facing: 1, scale: 1 },
+      { spec: 'goblin', x: 8, y: 0, facing: -1, scale: 1 },
+      { spec: 'chicken', x: 2, y: 0, facing: 1, scale: 1 },
+    ],
+    items: [
+      { kind: 'growWand', x: -2, y: 0.6 },
+      { kind: 'midasTouch', x: 10, y: 0.6 },
+    ],
+    decor: [
+      { id: 'stars', x: -16, y: 8, scale: 1.6 },
+      { id: 'stars', x: 6, y: 10, scale: 1.4 },
+      { id: 'stars', x: 26, y: 7, scale: 1.5 },
+      { id: 'earth', x: 16, y: 12, scale: 1.2 },
+      { id: 'crater', x: -12, y: 0.8, scale: 1 },
+      { id: 'crater', x: 14, y: 0.8, scale: 1.3 },
+      { id: 'moonflag', x: -9, y: 0, scale: 1 },
+      { id: 'rock', x: 18, y: 0, scale: 1 },
+    ],
+  },
+  {
     name: 'Blank Canvas',
     version: 1,
     gravity: 9.81,

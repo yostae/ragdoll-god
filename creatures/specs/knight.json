@@ -2,6 +2,7 @@
   "id": "knight",
   "name": "Knight",
   "faction": "human",
+  "enemyFactions": ["monster", "villain", "alien", "wildlife"],
   "enemies": ["goblin", "wolf"],
   "hp": 100,
   "walkSpeed": 1.6,
@@ -9,6 +10,8 @@
   "eyeHeight": 1.6,
   "standHeight": 0.95,
   "root": "pelvis",
+  "icon": "🛡️",
+  "blurb": "Brave, shiny and a little slow",
   "palette": { "skin": "#e8b88a", "armor": "#9aa4b1", "armorDark": "#5d6670", "cloth": "#3a5fbf", "boots": "#4a3320", "plume": "#d33a3a" },
   "parts": [
     { "name": "pelvis", "parent": null, "shape": "box", "pos": [0, 0.95, 0], "size": [0.32, 0.2, 0.2], "mass": 8, "role": "pelvis" },

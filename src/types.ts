@@ -34,6 +34,10 @@ export interface CreatureSpec {
   standHeight: number;
   root: string;
   palette?: Record<string, string>;
+  enemyFactions?: string[];
+  pack?: string; // undefined = base game; otherwise unlocked by a code pack
+  icon?: string;
+  blurb?: string;
   parts: PartSpec[];
 }
 
@@ -42,14 +46,17 @@ export interface MaterialDef {
   name: string;
   color: string;
   color2: string;
-  pattern: 'grass' | 'bricks' | 'planks' | 'stone' | 'metal' | 'sand' | 'ice' | 'cloud';
+  pattern: 'grass' | 'bricks' | 'planks' | 'stone' | 'metal' | 'sand' | 'ice' | 'cloud' | 'lava' | 'moon' | 'gold';
+  hazard?: 'lava'; // touching it hurts and pops creatures out
+  glow?: string; // emissive color
+  metal?: number; // metalness 0..1
   density: number; // kg / m^3 (depth is 1 m)
   friction: number;
   restitution: number;
   anchored: boolean; // default pin state when placed
 }
 
-export type ItemKind = 'growWand' | 'shrinkWand' | 'transmuteWand' | 'bonkHammer' | 'feather';
+export type ItemKind = 'growWand' | 'shrinkWand' | 'transmuteWand' | 'bonkHammer' | 'feather' | 'mutationWand' | 'bodyPotion' | 'midasTouch';
 
 export interface ItemDef {
   id: ItemKind;
@@ -61,6 +68,7 @@ export interface ItemDef {
   color: string;
   handleColor: string;
   strike: number; // damage multiplier when swung
+  pack?: string; // undefined = base game; otherwise unlocked by a code pack
 }
 
 export interface DecorDef {
@@ -91,6 +99,9 @@ export interface CreatureData {
   scale: number;
   item?: ItemKind;
   tint?: string;
+  partScales?: Record<string, number>; // mutation wand results
+  extraParts?: PartSpec[]; // body-part potion results
+  statue?: boolean; // turned to gold
 }
 
 export interface ItemData {

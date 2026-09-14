@@ -1,5 +1,6 @@
-// Codes unlock mod packs. A mod tweaks world settings or how creatures spawn.
-// Enter a code in the Codes dialog; unlocked mods show up as toggles in the Mods panel.
+// Codes unlock packs: mods (world tweaks) and content packs (creatures and items tagged with
+// `pack`). Enter a code in the Codes dialog; unlocked mods show up as toggles in the Mods panel,
+// unlocked content shows up in the Creatures and Items panels.
 
 export interface ModContext {
   gravity: number; // multiplier on the map's gravity
@@ -18,10 +19,18 @@ export interface ModDef {
   apply(ctx: ModContext): void;
 }
 
+export interface PackDef {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+}
+
 export interface CodeDef {
   code: string;
   title: string;
-  mods: string[];
+  mods?: string[];
+  packs?: string[];
 }
 
 export const MODS: Record<string, ModDef> = {
@@ -34,12 +43,23 @@ export const MODS: Record<string, ModDef> = {
   slowmo: { id: 'slowmo', name: 'Slow-Mo', icon: '🐢', description: 'Time runs at half speed.', apply: (c) => (c.slowMo *= 0.5) },
 };
 
-// The first code pack. More packs get designed once the core game is fun.
+export const PACKS: Record<string, PackDef> = {
+  heroes: { id: 'heroes', name: 'Heroes & Villains', icon: '⚡', description: 'Captain Zap, Rocket Girl, Dr. Skull and the Robo-Brute.' },
+  monsters: { id: 'monsters', name: 'Monster Mash', icon: '👁️', description: 'Cyclops, Mummy, Yeti and the Fire Lizard.' },
+  space: { id: 'space', name: 'Space Crew', icon: '🚀', description: 'An astronaut and a moon alien.' },
+  wizard: { id: 'wizard', name: 'Wizard Lab', icon: '🧬', description: 'The Mutation Wand and the Body Part Potion.' },
+};
+
+// The first code packs. Codes are matched case-insensitively, ignoring spaces and punctuation.
 export const CODES: CodeDef[] = [
   { code: 'BIGHEAD', title: 'Noggin Pack', mods: ['bighead'] },
-  { code: 'MOONWALK', title: 'Space Pack', mods: ['moon', 'slowmo'] },
+  { code: 'MOONWALK', title: 'Space Mods', mods: ['moon', 'slowmo'] },
   { code: 'SIZEMATTERS', title: 'Size Pack', mods: ['tiny', 'giants'] },
   { code: 'PARTYTIME', title: 'Party Pack', mods: ['rainbow', 'trampoline'] },
+  { code: 'HEROTIME', title: 'Heroes & Villains', packs: ['heroes'] },
+  { code: 'MONSTERMASH', title: 'Monster Mash', packs: ['monsters'] },
+  { code: 'MOONBASE', title: 'Space Crew', packs: ['space'], mods: ['moon'] },
+  { code: 'WIZARDRY', title: 'Wizard Lab', packs: ['wizard'] },
 ];
 
 export function defaultModContext(): ModContext {
@@ -54,8 +74,14 @@ export function buildModContext(activeMods: string[]): ModContext {
 
 export function unlockedMods(codes: string[]): ModDef[] {
   const ids = new Set<string>();
-  for (const c of codes) CODES.find((d) => d.code === c)?.mods.forEach((m) => ids.add(m));
+  for (const c of codes) CODES.find((d) => d.code === c)?.mods?.forEach((m) => ids.add(m));
   return [...ids].map((id) => MODS[id]).filter(Boolean);
+}
+
+export function unlockedPacks(codes: string[]): PackDef[] {
+  const ids = new Set<string>();
+  for (const c of codes) CODES.find((d) => d.code === c)?.packs?.forEach((p) => ids.add(p));
+  return [...ids].map((id) => PACKS[id]).filter(Boolean);
 }
 
 export function lookupCode(input: string): CodeDef | null {

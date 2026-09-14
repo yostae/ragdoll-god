@@ -3,12 +3,12 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Physics, type EntityRef } from './physics';
 import { Renderer } from './render';
 import { Effects } from './effects';
-import { Creature } from './creature';
+import { Creature, type CreatureOptions } from './creature';
 import { Block } from './block';
 import { Item } from './item';
 import { Decor } from './decor';
 import { CREATURES, ITEMS, MATERIAL_ORDER } from './data';
-import type { ItemKind, MapData } from './types';
+import type { ItemKind, MapData, PartSpec } from './types';
 import { buildModContext, type ModContext } from './mods';
 
 export type Mode = 'edit' | 'play' | 'pause';
@@ -46,6 +46,8 @@ export class Game {
   onToast: (msg: string) => void = () => {};
   private itemCooldown = new Map<number, number>();
   private clock = 0;
+  private hazardTimer = 0;
+  packs = new Set<string>(); // unlocked content packs (from codes)
 
   constructor(container: HTMLElement, initialMap: MapData) {
     this.renderer = new Renderer(container);
@@ -75,7 +77,7 @@ export class Game {
     for (const b of map.blocks) this.spawnBlock(b.material, b.x, b.y, b.w, b.h, b.anchored, b.rot ?? 0);
     for (const d of map.decor) this.spawnDecor(d.id, d.x, d.y, d.scale, d.layer);
     for (const c of map.creatures) {
-      const cr = this.spawnCreature(c.spec, c.x, c.y, c.facing, c.scale, c.tint, false);
+      const cr = this.spawnCreature(c.spec, c.x, c.y, c.facing, c.scale, c.tint, false, { partScales: c.partScales, extraParts: c.extraParts, statue: c.statue });
       if (cr && c.item) {
         const it = this.spawnItem(c.item, c.x, c.y + 1);
         if (it) cr.holdItem(it);
@@ -105,7 +107,18 @@ export class Game {
       decor: this.decor.map((d) => d.serialize()),
       creatures: this.creatures.map((c) => {
         const t = c.root.body.translation();
-        return { spec: c.spec.id, x: +t.x.toFixed(2), y: +(t.y - c.spec.standHeight * c.scale).toFixed(2), facing: c.facing, scale: c.scale, tint: c.tint, item: c.heldItem?.def.id };
+        return {
+          spec: c.spec.id,
+          x: +t.x.toFixed(2),
+          y: +(t.y - c.spec.standHeight * c.scale).toFixed(2),
+          facing: c.facing,
+          scale: c.scale,
+          tint: c.tint,
+          item: c.heldItem?.def.id,
+          partScales: Object.keys(c.partScales).length ? c.partScales : undefined,
+          extraParts: c.extraParts.length ? c.extraParts : undefined,
+          statue: c.statue || undefined,
+        };
       }),
       items: this.items.filter((i) => !i.heldBy).map((i) => {
         const t = i.body.translation();
@@ -148,7 +161,11 @@ export class Game {
 
   // ---------- spawning ----------
 
-  spawnCreature(specId: string, x: number, y: number, facing: 1 | -1 = 1, scale = 1, tint?: string, useMods = true): Creature | null {
+  setPacks(ids: string[]) {
+    this.packs = new Set(ids);
+  }
+
+  spawnCreature(specId: string, x: number, y: number, facing: 1 | -1 = 1, scale = 1, tint?: string, useMods = true, opts: CreatureOptions = {}): Creature | null {
     const spec = CREATURES[specId];
     if (!spec) return null;
     let headMod = 1;
@@ -157,10 +174,12 @@ export class Game {
       headMod = this.modCtx.headScale;
       if (this.modCtx.rainbow && !tint) tint = `hsl(${Math.floor(Math.random() * 360)}, 90%, 60%)`;
     }
-    const c = new Creature(this.physics, this.renderer.scene, this.effects, spec, x, y, facing, scale, tint, headMod);
+    const c = new Creature(this.physics, this.renderer.scene, this.effects, spec, x, y, facing, scale, tint, headMod, opts);
     c.container.userData.entity = c;
-    if (this.mode === 'edit') c.setState('upright');
-    else c.setState('gettingUp', 0.3);
+    if (!c.statue) {
+      if (this.mode === 'edit') c.setState('upright');
+      else c.setState('gettingUp', 0.3);
+    }
     this.creatures.push(c);
     return c;
   }
@@ -211,23 +230,81 @@ export class Game {
   rescaleCreature(c: Creature, factor: number): Creature | null {
     const newScale = THREE.MathUtils.clamp(c.scale * factor, 0.35, 3.2);
     if (Math.abs(newScale - c.scale) < 1e-3) return c;
+    return this.rebuildCreature(c, { scale: newScale });
+  }
+
+  /** Rebuild a creature in place with changed scale / mutations / extra limbs, keeping its item. */
+  rebuildCreature(c: Creature, changes: { scale?: number; partScales?: Record<string, number>; extraParts?: PartSpec[]; tint?: string }): Creature {
     const t = c.root.body.translation();
     const feetY = c.feetY;
     const item = c.heldItem;
     if (item) c.dropItem();
     const facing = c.facing;
-    const tint = c.tint;
     const headMod = c.headMod;
+    const wasStatue = c.statue;
     this.creatures = this.creatures.filter((x) => x !== c);
     c.dispose();
-    const spec = c.spec;
-    const nc = new Creature(this.physics, this.renderer.scene, this.effects, spec, t.x, feetY + 0.05, facing, newScale, tint, headMod);
+    const nc = new Creature(this.physics, this.renderer.scene, this.effects, c.spec, t.x, feetY + 0.05, facing, changes.scale ?? c.scale, changes.tint ?? c.tint, headMod, {
+      partScales: changes.partScales ?? c.partScales,
+      extraParts: changes.extraParts ?? c.extraParts,
+      statue: wasStatue,
+    });
     nc.container.userData.entity = nc;
-    nc.setState(this.mode === 'edit' ? 'upright' : 'gettingUp', 0.5);
+    if (!wasStatue) nc.setState(this.mode === 'edit' ? 'upright' : 'gettingUp', 0.5);
     this.creatures.push(nc);
     if (item) nc.holdItem(item);
     this.effects.puff(t.x, feetY + 0.3, 8);
     return nc;
+  }
+
+  /** Mutation wand: scramble one or two body parts and shift the color. */
+  mutateCreature(c: Creature): Creature {
+    const scales = { ...c.partScales };
+    const parts = c.spec.parts;
+    const pick = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+    const byRole = (role: string) => parts.filter((p) => p.role === role).map((p) => p.name);
+    const mutations: Array<() => void> = [
+      () => byRole('head').forEach((n) => (scales[n] = pick([1.7, 2.1, 0.5]))),
+      () => byRole('hand').forEach((n) => (scales[n] = pick([2.5, 3.2]))),
+      () => byRole('arm').forEach((n) => (scales[n] = pick([1.6, 0.6]))),
+      () => byRole('leg').forEach((n) => (scales[n] = pick([0.55, 1.5]))),
+      () => byRole('foot').forEach((n) => (scales[n] = pick([2.2, 0.5]))),
+      () => byRole('torso').concat(byRole('body')).forEach((n) => (scales[n] = pick([1.4, 0.7]))),
+      () => byRole('tail').concat(byRole('wing')).forEach((n) => (scales[n] = pick([2.2, 0.5]))),
+    ].filter((fn, i) => {
+      const roles = ['head', 'hand', 'arm', 'leg', 'foot', 'torso', 'tail'];
+      return byRole(roles[i]).length > 0 || (i === 5 && byRole('body').length) || (i === 6 && byRole('wing').length);
+    });
+    const count = 1 + (Math.random() < 0.5 ? 1 : 0);
+    for (let i = 0; i < count && mutations.length; i++) pick(mutations)();
+    const tint = Math.random() < 0.5 ? `hsl(${Math.floor(Math.random() * 360)}, 85%, 60%)` : c.tint;
+    return this.rebuildCreature(c, { partScales: scales, tint });
+  }
+
+  /** Body part potion: grow an extra copy of a limb chain off the torso or pelvis. */
+  growLimb(c: Creature): Creature | null {
+    if (c.extraParts.length >= 8) return null;
+    const all = [...c.spec.parts, ...c.extraParts];
+    const supports = new Set(all.filter((p) => p.role === 'pelvis' || p.role === 'torso' || p.role === 'body').map((p) => p.name));
+    const roots = c.spec.parts.filter((p) => p.parent && supports.has(p.parent) && ['arm', 'leg', 'wing', 'tail'].includes(p.role ?? ''));
+    if (!roots.length) return null;
+    const src = roots[Math.floor(Math.random() * roots.length)];
+    const n = c.extraParts.length + 1;
+    const suffix = `.X${n}`;
+    const zOff = (n % 2 ? 1 : -1) * (0.14 + 0.05 * Math.floor(n / 2)) * c.scale;
+    const xOff = (Math.random() - 0.5) * 0.12;
+    const chain: PartSpec[] = [];
+    const visit = (p: PartSpec, parentName: string) => {
+      const clone = JSON.parse(JSON.stringify(p)) as PartSpec;
+      clone.name = p.name + suffix;
+      clone.parent = parentName;
+      clone.pos = [p.pos[0] + xOff, p.pos[1], p.pos[2] + zOff];
+      if (clone.joint) clone.joint.anchor = [clone.joint.anchor[0] + xOff, clone.joint.anchor[1], clone.joint.anchor[2] + zOff];
+      chain.push(clone);
+      for (const child of c.spec.parts) if (child.parent === p.name) visit(child, clone.name);
+    };
+    visit(src, src.parent!);
+    return this.rebuildCreature(c, { extraParts: [...c.extraParts, ...chain] });
   }
 
   // ---------- picking & God tools ----------
@@ -358,6 +435,25 @@ export class Game {
           fx(4);
         }
         break;
+      case 'mutationWand':
+        if (target instanceof Creature) this.mutateCreature(target);
+        else if (target instanceof Block) target.setMaterial(MATERIAL_ORDER[Math.floor(Math.random() * MATERIAL_ORDER.length)]);
+        fx(8);
+        break;
+      case 'bodyPotion':
+        if (target instanceof Creature) {
+          if (!this.growLimb(target)) this.onToast('That one is already all limbs!');
+        }
+        fx(6);
+        break;
+      case 'midasTouch':
+        if (target instanceof Creature) {
+          target.petrify();
+          this.renderer.shake = 0.15;
+        } else if (target instanceof Block) target.setMaterial('gold');
+        else if (target instanceof Item) target.setGold();
+        fx(8);
+        break;
       case 'feather':
         if (target instanceof Creature) {
           const on = target.gravityScale >= 1;
@@ -408,6 +504,11 @@ export class Game {
       for (const c of this.creatures) c.think(scaled, this.creatures, this.items);
       this.physics.step(scaled, () => this.beforeStep());
       this.processHits();
+      this.hazardTimer -= scaled;
+      if (this.hazardTimer <= 0) {
+        this.hazardTimer = 0.12;
+        this.processHazards();
+      }
       this.killFloor();
     }
     this.syncVisuals();
@@ -546,6 +647,46 @@ export class Game {
       }
     }
     hits.length = 0;
+  }
+
+  /** Lava: anything alive that touches it gets a hot-foot and pops back out. */
+  private processHazards() {
+    const lava = this.blocks.filter((b) => b.material.hazard === 'lava');
+    if (!lava.length) return;
+    const inside = (x: number, y: number, margin: number) => {
+      for (const b of lava) {
+        const t = b.body.translation();
+        if (Math.abs(x - t.x) <= b.w / 2 + margin && Math.abs(y - t.y) <= b.h / 2 + margin) return b;
+      }
+      return null;
+    };
+    for (const c of this.creatures) {
+      if (c.statue) continue;
+      let hit: Block | null = null;
+      for (const p of c.parts) {
+        const t = p.body.translation();
+        hit = inside(t.x, t.y, 0.15);
+        if (hit) break;
+      }
+      if (!hit) continue;
+      c.knockDown(0.3);
+      c.hurt(6);
+      c.hurtFlash = 0.3;
+      // Shove toward the nearest edge of the lava so they actually get out.
+      const lx = hit.body.translation().x;
+      const dir = Math.sign(c.root.body.translation().x - lx) || (Math.random() < 0.5 ? -1 : 1);
+      for (const p of c.supports) p.body.applyImpulse({ x: (dir * c.totalMass * 4) / c.supports.length, y: (c.totalMass * 6) / c.supports.length, z: 0 }, true);
+      const r = c.root.body.translation();
+      this.effects.stars(r.x, r.y, 6, 1);
+      this.effects.puff(r.x, r.y - 0.3, 5);
+    }
+    for (const it of this.items) {
+      const t = it.body.translation();
+      if (!it.heldBy && inside(t.x, t.y, 0.02)) {
+        it.body.applyImpulse({ x: (Math.random() - 0.5) * it.body.mass() * 4, y: it.body.mass() * 7, z: 0 }, true);
+        this.effects.puff(t.x, t.y, 3);
+      }
+    }
   }
 
   private killFloor() {

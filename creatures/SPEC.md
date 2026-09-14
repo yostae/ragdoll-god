@@ -33,9 +33,19 @@ One JSON file per creature in `creatures/specs/<id>.json`. The SAME file drives:
   "standHeight": 0.95,       // rest height of the root part center above ground (balance spring)
   "root": "pelvis",          // the part with no parent
   "palette": { "skin": "#e8b88a", "armor": "#9aa4b1" },  // hints for Blender materials
+  "faction": "human",        // human | hero | villain | monster | giant | wildlife | farm | alien
+  "enemyFactions": ["monster", "villain"],  // fights any creature whose faction is listed
+  "pack": "heroes",          // omit for the base game; otherwise the code pack that unlocks it
+  "icon": "🛡️",              // emoji for the UI card
+  "blurb": "Brave and shiny", // one short line for the UI card
   "parts": [ { ...part }, ... ]
 }
 ```
+
+Enemy matrix (keep it symmetric-ish): human <-> monster, villain, alien, wildlife;
+hero <-> villain, monster, alien, giant; villain <-> hero, human; monster <-> human, hero, farm;
+giant <-> everyone except giant; alien <-> human, hero; wildlife (wolf) <-> farm, human;
+farm (chicken) <-> monster, wildlife. `enemies` (explicit ids) still works on top of factions.
 
 ### Part
 

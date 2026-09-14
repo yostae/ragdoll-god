@@ -2,6 +2,7 @@
   "id": "chicken",
   "name": "Chicken",
   "faction": "farm",
+  "enemyFactions": ["monster", "wildlife"],
   "enemies": ["goblin", "wolf"],
   "hp": 40,
   "walkSpeed": 2.2,
@@ -9,6 +10,8 @@
   "eyeHeight": 0.55,
   "standHeight": 0.33,
   "root": "body",
+  "icon": "🐔",
+  "blurb": "Flappy, clucky and easily startled",
   "palette": { "feathers": "#f7f4ee", "feathersDark": "#dcd6c8", "comb": "#d12f2f", "beak": "#f2b632", "legs": "#e8a63a" },
   "parts": [
     { "name": "body", "parent": null, "shape": "sphere", "pos": [0, 0.33, 0], "size": [0.16], "mass": 1.2, "role": "torso" },
