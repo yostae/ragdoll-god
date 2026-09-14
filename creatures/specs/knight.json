@@ -1,0 +1,48 @@
+{
+  "id": "knight",
+  "name": "Knight",
+  "faction": "human",
+  "enemies": ["goblin", "wolf"],
+  "hp": 100,
+  "walkSpeed": 1.6,
+  "grip": "hand.R",
+  "eyeHeight": 1.6,
+  "standHeight": 0.95,
+  "root": "pelvis",
+  "palette": { "skin": "#e8b88a", "armor": "#9aa4b1", "armorDark": "#5d6670", "cloth": "#3a5fbf", "boots": "#4a3320", "plume": "#d33a3a" },
+  "parts": [
+    { "name": "pelvis", "parent": null, "shape": "box", "pos": [0, 0.95, 0], "size": [0.32, 0.2, 0.2], "mass": 8, "role": "pelvis" },
+    { "name": "torso", "parent": "pelvis", "shape": "box", "pos": [0, 1.25, 0], "size": [0.36, 0.4, 0.22], "mass": 14, "role": "torso",
+      "joint": { "anchor": [0, 1.05, 0], "limits": [-20, 20], "stiffness": 80, "damping": 6 } },
+    { "name": "head", "parent": "torso", "shape": "box", "pos": [0, 1.62, 0], "size": [0.26, 0.28, 0.26], "mass": 5, "role": "head",
+      "joint": { "anchor": [0, 1.47, 0], "limits": [-30, 30], "stiffness": 30, "damping": 3 } },
+
+    { "name": "upperArm.L", "parent": "torso", "shape": "capsule", "pos": [-0.22, 1.28, -0.06], "size": [0.06, 0.16], "mass": 2.5, "side": "L", "role": "arm",
+      "joint": { "anchor": [-0.22, 1.42, -0.06], "limits": [-160, 60] } },
+    { "name": "lowerArm.L", "parent": "upperArm.L", "shape": "capsule", "pos": [-0.22, 1.005, -0.06], "size": [0.055, 0.16], "mass": 1.5, "side": "L", "role": "arm",
+      "joint": { "anchor": [-0.22, 1.14, -0.06], "limits": [0, 140] } },
+    { "name": "hand.L", "parent": "lowerArm.L", "shape": "sphere", "pos": [-0.22, 0.82, -0.06], "size": [0.055], "mass": 0.5, "side": "L", "role": "hand",
+      "joint": { "anchor": [-0.22, 0.87, -0.06], "limits": [-30, 30] } },
+
+    { "name": "upperArm.R", "parent": "torso", "shape": "capsule", "pos": [0.22, 1.28, 0.06], "size": [0.06, 0.16], "mass": 2.5, "side": "R", "role": "arm",
+      "joint": { "anchor": [0.22, 1.42, 0.06], "limits": [-160, 60] } },
+    { "name": "lowerArm.R", "parent": "upperArm.R", "shape": "capsule", "pos": [0.22, 1.005, 0.06], "size": [0.055, 0.16], "mass": 1.5, "side": "R", "role": "arm",
+      "joint": { "anchor": [0.22, 1.14, 0.06], "limits": [0, 140] } },
+    { "name": "hand.R", "parent": "lowerArm.R", "shape": "sphere", "pos": [0.22, 0.82, 0.06], "size": [0.055], "mass": 0.5, "side": "R", "role": "hand",
+      "joint": { "anchor": [0.22, 0.87, 0.06], "limits": [-30, 30] } },
+
+    { "name": "upperLeg.L", "parent": "pelvis", "shape": "capsule", "pos": [-0.09, 0.68, -0.06], "size": [0.075, 0.25], "mass": 6, "side": "L", "role": "leg",
+      "joint": { "anchor": [-0.09, 0.88, -0.06], "limits": [-90, 60], "stiffness": 70, "damping": 5 } },
+    { "name": "lowerLeg.L", "parent": "upperLeg.L", "shape": "capsule", "pos": [-0.09, 0.29, -0.06], "size": [0.065, 0.25], "mass": 4, "side": "L", "role": "leg",
+      "joint": { "anchor": [-0.09, 0.48, -0.06], "limits": [-130, 0], "stiffness": 60, "damping": 5 } },
+    { "name": "foot.L", "parent": "lowerLeg.L", "shape": "box", "pos": [-0.05, 0.045, -0.06], "size": [0.22, 0.09, 0.14], "mass": 1.5, "side": "L", "role": "foot",
+      "joint": { "anchor": [-0.09, 0.1, -0.06], "limits": [-30, 30] } },
+
+    { "name": "upperLeg.R", "parent": "pelvis", "shape": "capsule", "pos": [0.09, 0.68, 0.06], "size": [0.075, 0.25], "mass": 6, "side": "R", "role": "leg",
+      "joint": { "anchor": [0.09, 0.88, 0.06], "limits": [-90, 60], "stiffness": 70, "damping": 5 } },
+    { "name": "lowerLeg.R", "parent": "upperLeg.R", "shape": "capsule", "pos": [0.09, 0.29, 0.06], "size": [0.065, 0.25], "mass": 4, "side": "R", "role": "leg",
+      "joint": { "anchor": [0.09, 0.48, 0.06], "limits": [-130, 0], "stiffness": 60, "damping": 5 } },
+    { "name": "foot.R", "parent": "lowerLeg.R", "shape": "box", "pos": [0.13, 0.045, 0.06], "size": [0.22, 0.09, 0.14], "mass": 1.5, "side": "R", "role": "foot",
+      "joint": { "anchor": [0.09, 0.1, 0.06], "limits": [-30, 30] } }
+  ]
+}

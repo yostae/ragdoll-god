@@ -1,0 +1,40 @@
+{
+  "id": "wolf",
+  "name": "Wolf",
+  "faction": "beast",
+  "enemies": ["chicken", "knight"],
+  "hp": 80,
+  "walkSpeed": 3.0,
+  "grip": "head",
+  "eyeHeight": 0.78,
+  "standHeight": 0.6,
+  "root": "pelvis",
+  "palette": { "fur": "#8a8f96", "furDark": "#5c6169", "furLight": "#c9ccd0", "nose": "#1f1f1f", "tongue": "#d64a5a" },
+  "parts": [
+    { "name": "pelvis", "parent": null, "shape": "box", "pos": [-0.35, 0.6, 0], "size": [0.32, 0.28, 0.24], "mass": 9, "role": "pelvis" },
+    { "name": "chest", "parent": "pelvis", "shape": "box", "pos": [0.1, 0.62, 0], "size": [0.58, 0.32, 0.28], "mass": 12, "role": "torso",
+      "joint": { "anchor": [-0.19, 0.61, 0], "limits": [-15, 15], "stiffness": 90, "damping": 7 } },
+    { "name": "head", "parent": "chest", "shape": "box", "pos": [0.56, 0.72, 0], "size": [0.34, 0.24, 0.22], "mass": 4, "role": "head",
+      "joint": { "anchor": [0.39, 0.7, 0], "limits": [-40, 30], "stiffness": 40, "damping": 4 } },
+    { "name": "tail", "parent": "pelvis", "shape": "capsule", "pos": [-0.656, 0.713, 0], "rot": [0, 0, 70], "size": [0.045, 0.22], "mass": 0.8, "role": "tail",
+      "joint": { "anchor": [-0.51, 0.66, 0], "limits": [-45, 45], "stiffness": 15, "damping": 2 } },
+
+    { "name": "upperLeg.FL", "parent": "chest", "shape": "capsule", "pos": [0.28, 0.345, -0.08], "size": [0.055, 0.12], "mass": 1.8, "side": "L", "role": "leg",
+      "joint": { "anchor": [0.28, 0.46, -0.08], "limits": [-60, 60], "stiffness": 60, "damping": 5 } },
+    { "name": "lowerLeg.FL", "parent": "upperLeg.FL", "shape": "capsule", "pos": [0.28, 0.115, -0.08], "size": [0.045, 0.14], "mass": 0.9, "side": "L", "role": "leg",
+      "joint": { "anchor": [0.28, 0.23, -0.08], "limits": [-120, 0], "stiffness": 50, "damping": 4 } },
+    { "name": "upperLeg.FR", "parent": "chest", "shape": "capsule", "pos": [0.28, 0.345, 0.08], "size": [0.055, 0.12], "mass": 1.8, "side": "R", "role": "leg",
+      "joint": { "anchor": [0.28, 0.46, 0.08], "limits": [-60, 60], "stiffness": 60, "damping": 5 } },
+    { "name": "lowerLeg.FR", "parent": "upperLeg.FR", "shape": "capsule", "pos": [0.28, 0.115, 0.08], "size": [0.045, 0.14], "mass": 0.9, "side": "R", "role": "leg",
+      "joint": { "anchor": [0.28, 0.23, 0.08], "limits": [-120, 0], "stiffness": 50, "damping": 4 } },
+
+    { "name": "upperLeg.BL", "parent": "pelvis", "shape": "capsule", "pos": [-0.38, 0.345, -0.08], "size": [0.055, 0.12], "mass": 1.8, "side": "L", "role": "leg",
+      "joint": { "anchor": [-0.38, 0.46, -0.08], "limits": [-60, 60], "stiffness": 60, "damping": 5 } },
+    { "name": "lowerLeg.BL", "parent": "upperLeg.BL", "shape": "capsule", "pos": [-0.38, 0.115, -0.08], "size": [0.045, 0.14], "mass": 0.9, "side": "L", "role": "leg",
+      "joint": { "anchor": [-0.38, 0.23, -0.08], "limits": [0, 120], "stiffness": 50, "damping": 4 } },
+    { "name": "upperLeg.BR", "parent": "pelvis", "shape": "capsule", "pos": [-0.38, 0.345, 0.08], "size": [0.055, 0.12], "mass": 1.8, "side": "R", "role": "leg",
+      "joint": { "anchor": [-0.38, 0.46, 0.08], "limits": [-60, 60], "stiffness": 60, "damping": 5 } },
+    { "name": "lowerLeg.BR", "parent": "upperLeg.BR", "shape": "capsule", "pos": [-0.38, 0.115, 0.08], "size": [0.045, 0.14], "mass": 0.9, "side": "R", "role": "leg",
+      "joint": { "anchor": [-0.38, 0.23, 0.08], "limits": [0, 120], "stiffness": 50, "damping": 4 } }
+  ]
+}

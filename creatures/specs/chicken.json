@@ -1,0 +1,30 @@
+{
+  "id": "chicken",
+  "name": "Chicken",
+  "faction": "farm",
+  "enemies": ["goblin", "wolf"],
+  "hp": 40,
+  "walkSpeed": 2.2,
+  "grip": "head",
+  "eyeHeight": 0.55,
+  "standHeight": 0.33,
+  "root": "body",
+  "palette": { "feathers": "#f7f4ee", "feathersDark": "#dcd6c8", "comb": "#d12f2f", "beak": "#f2b632", "legs": "#e8a63a" },
+  "parts": [
+    { "name": "body", "parent": null, "shape": "sphere", "pos": [0, 0.33, 0], "size": [0.16], "mass": 1.2, "role": "torso" },
+    { "name": "head", "parent": "body", "shape": "sphere", "pos": [0.12, 0.54, 0], "size": [0.08], "mass": 0.3, "role": "head",
+      "joint": { "anchor": [0.08, 0.47, 0], "limits": [-40, 40], "stiffness": 25, "damping": 2 } },
+    { "name": "wing.L", "parent": "body", "shape": "box", "pos": [-0.02, 0.35, -0.15], "size": [0.18, 0.12, 0.04], "mass": 0.1, "side": "L", "role": "wing",
+      "joint": { "anchor": [-0.02, 0.41, -0.13], "limits": [-60, 25], "stiffness": 10, "damping": 1 } },
+    { "name": "wing.R", "parent": "body", "shape": "box", "pos": [-0.02, 0.35, 0.15], "size": [0.18, 0.12, 0.04], "mass": 0.1, "side": "R", "role": "wing",
+      "joint": { "anchor": [-0.02, 0.41, 0.13], "limits": [-60, 25], "stiffness": 10, "damping": 1 } },
+    { "name": "upperLeg.L", "parent": "body", "shape": "capsule", "pos": [0, 0.11, -0.05], "size": [0.02, 0.1], "mass": 0.08, "side": "L", "role": "leg",
+      "joint": { "anchor": [0, 0.18, -0.05], "limits": [-70, 70], "stiffness": 30, "damping": 3 } },
+    { "name": "foot.L", "parent": "upperLeg.L", "shape": "box", "pos": [0.03, 0.02, -0.05], "size": [0.12, 0.04, 0.08], "mass": 0.05, "side": "L", "role": "foot",
+      "joint": { "anchor": [0, 0.04, -0.05], "limits": [-30, 30] } },
+    { "name": "upperLeg.R", "parent": "body", "shape": "capsule", "pos": [0, 0.11, 0.05], "size": [0.02, 0.1], "mass": 0.08, "side": "R", "role": "leg",
+      "joint": { "anchor": [0, 0.18, 0.05], "limits": [-70, 70], "stiffness": 30, "damping": 3 } },
+    { "name": "foot.R", "parent": "upperLeg.R", "shape": "box", "pos": [0.03, 0.02, 0.05], "size": [0.12, 0.04, 0.08], "mass": 0.05, "side": "R", "role": "foot",
+      "joint": { "anchor": [0, 0.04, 0.05], "limits": [-30, 30] } }
+  ]
+}
