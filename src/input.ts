@@ -16,6 +16,7 @@ export type Tool =
   | { type: 'use'; kind: ItemKind };
 
 const GRID = 0.25;
+const TAP_SLOP = 18; // px a finger may wander and still count as a tap
 const snap = (v: number) => Math.round(v / GRID) * GRID;
 
 interface PointerState {
@@ -153,7 +154,7 @@ export class Input {
     const dy = e.clientY - ps.y;
     ps.x = e.clientX;
     ps.y = e.clientY;
-    if (Math.hypot(e.clientX - ps.startX, e.clientY - ps.startY) > 8) ps.moved = true;
+    if (Math.hypot(e.clientX - ps.startX, e.clientY - ps.startY) > TAP_SLOP) ps.moved = true;
     const r = this.game.renderer;
 
     if (this.pointers.size === 2) {
@@ -246,7 +247,10 @@ export class Input {
     }
     if (t.type === 'material') return;
     const p = g.pick(cx, cy);
-    if (!p) return;
+    if (!p) {
+      if (t.type === 'use') g.onToast('Tap right on a creature, block or item');
+      return;
+    }
     if (t.type === 'delete') {
       g.effects.puff(p.point.x, p.point.y, 5);
       g.remove(p.entity);

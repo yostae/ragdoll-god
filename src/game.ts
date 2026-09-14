@@ -278,12 +278,13 @@ export class Game {
     const count = 1 + (Math.random() < 0.5 ? 1 : 0);
     for (let i = 0; i < count && mutations.length; i++) pick(mutations)();
     const tint = Math.random() < 0.5 ? `hsl(${Math.floor(Math.random() * 360)}, 85%, 60%)` : c.tint;
-    return this.rebuildCreature(c, { partScales: scales, tint });
+    const rebuilt = this.rebuildCreature(c, { partScales: scales, tint });
+    // Every other zap also sprouts a limb.
+    return Math.random() < 0.5 ? (this.growLimb(rebuilt) ?? rebuilt) : rebuilt;
   }
 
   /** Body part potion: grow an extra copy of a limb chain off the torso or pelvis. */
   growLimb(c: Creature): Creature | null {
-    if (c.extraParts.length >= 8) return null;
     const all = [...c.spec.parts, ...c.extraParts];
     const supports = new Set(all.filter((p) => p.role === 'pelvis' || p.role === 'torso' || p.role === 'body').map((p) => p.name));
     const roots = c.spec.parts.filter((p) => p.parent && supports.has(p.parent) && ['arm', 'leg', 'wing', 'tail'].includes(p.role ?? ''));
@@ -309,15 +310,59 @@ export class Game {
 
   // ---------- picking & God tools ----------
 
+  /**
+   * What is under the pointer. Uses the physics bodies on the z = 0 plane with a finger-sized
+   * margin (mesh raycasts on skinned creatures are unreliable once they move), then falls back
+   * to a mesh raycast for scenery.
+   */
   pick(clientX: number, clientY: number): Pick | null {
-    const rc = this.renderer.raycaster(clientX, clientY);
-    const hits = rc.intersectObjects(this.renderer.scene.children, true);
-    for (const h of hits) {
-      let o: THREE.Object3D | null = h.object;
-      while (o) {
-        if (o.userData.entity) return { entity: o.userData.entity as Entity, point: h.point };
-        o = o.parent;
+    const world = this.renderer.screenToWorld(clientX, clientY);
+    // Margin grows with zoom so a fingertip covers roughly the same screen area at any zoom.
+    const margin = 0.12 + this.renderer.zoom * 0.012;
+    let best: { entity: Entity; d: number; point: THREE.Vector3 } | null = null;
+    const consider = (entity: Entity, d: number, px: number, py: number, priority: number) => {
+      // Lower score wins; creatures get a head start over blocks they stand on.
+      const score = d - priority;
+      if (!best || score < best.d) best = { entity, d: score, point: new THREE.Vector3(px, py, 0) };
+    };
+    for (const c of this.creatures) {
+      for (const p of c.parts) {
+        const t = p.body.translation();
+        const size = p.spec.size;
+        const r = (p.spec.shape === 'box' ? Math.max(size[0], size[1]) / 2 : p.spec.shape === 'capsule' ? size[1] / 2 + size[0] : size[0]) * c.scale * (c.partScales[p.spec.name] ?? 1);
+        const d = Math.hypot(t.x - world.x, t.y - world.y) - r;
+        if (d <= margin) consider(c, Math.max(0, d), t.x, t.y, 0.3);
       }
+    }
+    for (const it of this.items) {
+      const t = it.body.translation();
+      const d = Math.hypot(t.x - world.x, t.y - world.y) - Math.max(it.def.size[0], it.def.size[1]);
+      if (d <= margin) consider(it, Math.max(0, d), t.x, t.y, 0.35);
+    }
+    for (const b of this.blocks) {
+      const t = b.body.translation();
+      const r = b.body.rotation();
+      // Rotate the point into the block frame for tilted blocks.
+      const ang = -2 * Math.atan2(r.z, r.w);
+      const dx = world.x - t.x;
+      const dy = world.y - t.y;
+      const lx = dx * Math.cos(ang) - dy * Math.sin(ang);
+      const ly = dx * Math.sin(ang) + dy * Math.cos(ang);
+      const ox = Math.max(0, Math.abs(lx) - b.w / 2);
+      const oy = Math.max(0, Math.abs(ly) - b.h / 2);
+      const d = Math.hypot(ox, oy);
+      if (d <= margin * 0.5) consider(b, d, world.x, world.y, 0);
+    }
+    if (best) {
+      const found = best as { entity: Entity; d: number; point: THREE.Vector3 };
+      return { entity: found.entity, point: found.point };
+    }
+    // Scenery: plain mesh raycast is fine for flat sprites.
+    const rc = this.renderer.raycaster(clientX, clientY);
+    const hits = rc.intersectObjects(this.decor.map((d) => d.mesh), false);
+    for (const h of hits) {
+      const e = h.object.userData.entity as Entity | undefined;
+      if (e) return { entity: e, point: h.point };
     }
     return null;
   }
@@ -441,9 +486,7 @@ export class Game {
         fx(8);
         break;
       case 'bodyPotion':
-        if (target instanceof Creature) {
-          if (!this.growLimb(target)) this.onToast('That one is already all limbs!');
-        }
+        if (target instanceof Creature) this.growLimb(target);
         fx(6);
         break;
       case 'midasTouch':
