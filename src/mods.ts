@@ -44,7 +44,7 @@ export const MODS: Record<string, ModDef> = {
 };
 
 export const PACKS: Record<string, PackDef> = {
-  heroes: { id: 'heroes', name: 'Heroes & Villains', icon: '⚡', description: 'Captain Zap, Rocket Girl, Dr. Skull and the Robo-Brute.' },
+  heroes: { id: 'heroes', name: 'Heroes & Villains', icon: '🦸', description: 'Ultra Guy, Night Moth, Web Kid, Wonder Gal, Green Grump, plus Jester Jack, Magnet Man and the Robo-Brute.' },
   monsters: { id: 'monsters', name: 'Monster Mash', icon: '👁️', description: 'Cyclops, Mummy, Yeti and the Fire Lizard.' },
   space: { id: 'space', name: 'Space Crew', icon: '🚀', description: 'An astronaut and a moon alien.' },
   wizard: { id: 'wizard', name: 'Wizard Lab', icon: '🧬', description: 'The Mutation Wand and the Body Part Potion.' },

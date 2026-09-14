@@ -48,7 +48,7 @@ Codes so far:
 | `MOONWALK` | Moon Gravity and Slow-Mo mods |
 | `SIZEMATTERS` | Tiny Town and Giants mods |
 | `PARTYTIME` | Rainbow Crew and Trampoline World mods |
-| `HEROTIME` | Heroes & Villains creatures: Captain Zap, Rocket Girl, Dr. Skull, Robo-Brute |
+| `HEROTIME` | Heroes & Villains (parody homages): Ultra Guy, Night Moth, Web Kid, Wonder Gal, Green Grump, Jester Jack, Magnet Man, Robo-Brute |
 | `MONSTERMASH` | Monster creatures: Cyclops, Mummy, Yeti, Fire Lizard |
 | `MOONBASE` | Space creatures: Astronaut, Moon Alien (plus the Moon Gravity mod) |
 | `WIZARDRY` | Wizard Lab items: Mutation Wand, Body Part Potion |

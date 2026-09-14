@@ -1,6 +1,6 @@
 {
   "id": "robobrute",
-  "name": "Robo Brute",
+  "name": "Robo-Brute",
   "faction": "villain",
   "enemyFactions": ["hero", "human"],
   "enemies": [],
