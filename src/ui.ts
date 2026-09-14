@@ -184,18 +184,18 @@ export class UI {
       this.panel.appendChild(dgrid);
     } else if (this.tab === 'items') {
       this.panel.appendChild(el('h3', undefined, 'Items & Weapons'));
-      this.panel.appendChild(el('p', 'help', '<b>Place</b> drops the item on the map (drag it onto a creature to hand it over). <b>Use</b> lets you zap things yourself.'));
+      this.panel.appendChild(el('p', 'help', 'Tap an item, then tap a creature or block to use it on them. <b>Drop</b> puts the item on the map so creatures can grab it.'));
       const list = el('div', 'list');
       for (const id of ITEM_ORDER) {
         const it = ITEMS[id];
         const row = el('div', 'item-row');
-        const place = el('button', 'card', `<span class="icon">${it.icon}</span><span class="name">${it.name}</span><small>${it.hint}</small>`);
-        place.dataset.tool = `place:item:${id}`;
-        cardDrag(place, { type: 'place', kind: 'item', id });
-        const use = el('button', 'btn use', '✨ Use');
+        const use = el('button', 'card', `<span class="icon">${it.icon}</span><span class="name">${it.name}</span><small>${it.hint}</small>`);
         use.dataset.tool = `use:${id}`;
         use.onclick = () => this.input.setTool({ type: 'use', kind: id as ItemKind });
-        row.append(place, use);
+        const drop = el('button', 'btn drop', '⬇ Drop');
+        drop.dataset.tool = `place:item:${id}`;
+        cardDrag(drop, { type: 'place', kind: 'item', id });
+        row.append(use, drop);
         list.appendChild(row);
       }
       this.panel.appendChild(list);
@@ -285,7 +285,7 @@ export class UI {
       flip: 'Tap a creature to turn it around.',
       place: 'Tap the map to place. Keep tapping for more. Esc or ✋ to stop.',
       material: 'Drag a rectangle on the map to build. Tap for a 1×1 block.',
-      use: 'Tap a creature or block to zap it with the item.',
+      use: 'Tap a creature, block or item to use it on them.',
     };
     let text = hints[t.type];
     if (t.type === 'place') text = `Placing ${t.kind === 'creature' ? CREATURES[t.id]?.name : t.kind === 'item' ? ITEMS[t.id]?.name : DECOR[t.id]?.name}: ` + text;

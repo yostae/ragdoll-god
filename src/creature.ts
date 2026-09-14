@@ -101,6 +101,9 @@ export class Creature {
   floatTimer = 0;
   hurtFlash = 0;
   invuln = 0; // seconds of immunity after getting up
+  settledFor = 0; // seconds the ragdoll has been at rest while down
+  getUpElapsed = 0;
+  wantItem: Item | null = null; // an item this creature is walking toward
   time = 0;
   headMod = 1;
 
@@ -377,7 +380,10 @@ export class Creature {
     for (const p of this.parts) {
       if (p.spec.role === 'leg' || p.spec.role === 'foot') p.collider.setSensor(!legsSolid);
     }
-    if (s === 'gettingUp') this.invuln = timer + 0.8;
+    if (s === 'gettingUp') {
+      this.invuln = timer + 0.8;
+      this.getUpElapsed = 0;
+    }
     if (s === 'gettingUp') this.strength = 0;
     if (s === 'upright') this.strength = 1;
     if (s === 'ko' || s === 'held') {
@@ -385,8 +391,9 @@ export class Creature {
       this.attackTime = -1;
       this.moveDir = 0;
     }
+    this.settledFor = 0;
     if (s === 'ko') {
-      if (!this.dizzy) this.dizzy = this.effects.makeDizzy();
+      if (this.hp <= 0 && !this.dizzy) this.dizzy = this.effects.makeDizzy();
     } else if (this.dizzy) {
       this.effects.removeDizzy(this.dizzy);
       this.dizzy = null;
@@ -400,14 +407,21 @@ export class Creature {
     this.hurtFlash = 0.25;
     if (this.hp <= 0 && this.state !== 'ko') {
       this.hp = 0;
-      this.knockOut(5 + Math.random() * 3);
-      const h = this.head.body.translation();
-      this.effects.word(h.x, h.y + 0.3, 'K.O.!', '#ff6b6b');
+      this.knockOut(3);
       if (fromX !== undefined) {
         const dir = Math.sign(this.root.body.translation().x - fromX) || 1;
         for (const p of this.supports) p.body.applyImpulse({ x: dir * this.totalMass * 1.5, y: this.totalMass * 2.5, z: 0 }, true);
       }
+    } else if (amount >= 14 && this.state === 'upright') {
+      // A big wallop knocks them off their feet even with health left; they get up once they settle.
+      this.knockDown(0.5);
     }
+  }
+
+  /** Full ragdoll until the body comes to rest (at least `minSeconds`), then get back up. */
+  knockDown(minSeconds = 0.5) {
+    if (this.state === 'ko' || this.state === 'held') return;
+    this.setState('ko', minSeconds);
   }
 
   knockOut(seconds: number) {
@@ -415,16 +429,18 @@ export class Creature {
     this.setState('ko', seconds);
   }
 
+  /** Is the ragdoll lying still? */
+  private isSettled(): boolean {
+    const v = this.root.body.linvel();
+    const w = this.root.body.angvel();
+    return Math.hypot(v.x, v.y) < 0.7 && Math.abs(w.z) < 2.5;
+  }
+
   /** Called by the God's hand tool. */
   setGrabbed(g: boolean) {
     this.grabbed = g;
     if (g) this.setState('held');
-    else {
-      const v = this.velocity();
-      if (this.hp <= 0) this.setState('ko', 3);
-      else if (v.length() > 5) this.setState('ko', 1.2);
-      else this.setState('gettingUp', 1.0);
-    }
+    else this.setState('ko', this.hp <= 0 ? 2 : 0.2); // lands like a ragdoll, then gets up once still
   }
 
   /** Rigidly rotate the whole assembly 180 degrees around the vertical axis through the root. */
@@ -495,17 +511,37 @@ export class Creature {
     if (this.state === 'ko' || this.state === 'held') {
       if (this.state === 'ko') {
         this.stateTimer -= dt;
-        if (this.stateTimer <= 0 && !this.grabbed) {
-          this.hp = this.maxHp;
-          this.setState('gettingUp', 1.2);
+        this.settledFor = this.isSettled() ? this.settledFor + dt : 0;
+        if (this.stateTimer <= 0 && this.settledFor > 0.35 && !this.grabbed) {
+          if (this.hp <= 0) this.hp = this.maxHp;
+          this.setState('gettingUp', 0.9);
         }
       }
       return;
     }
+    // Overcome by forces? Falling over or flying means the ragdoll takes over until it settles.
+    if (this.state === 'upright') {
+      const rq = this.root.body.rotation();
+      _q.set(rq.x, rq.y, rq.z, rq.w);
+      _p.set(0, 1, 0).applyQuaternion(_q);
+      const rv = this.root.body.linvel();
+      const tooFast = Math.hypot(rv.x, rv.y) > 5.5;
+      if (Math.abs(_p.x) > 0.8 || tooFast) {
+        this.knockDown(0.4);
+        return;
+      }
+    }
     if (this.state === 'gettingUp') {
       this.stateTimer -= dt;
+      this.getUpElapsed += dt;
       this.strength = Math.min(1, this.strength + dt / 1.0);
-      if (this.stateTimer <= 0) this.setState('upright');
+      if (this.stateTimer <= 0) {
+        // Only hand over to the balance brain once actually standing (or give up after a while).
+        const rq = this.root.body.rotation();
+        _q.set(rq.x, rq.y, rq.z, rq.w);
+        _p.set(0, 1, 0).applyQuaternion(_q);
+        if (Math.abs(_p.x) < 0.5 || this.getUpElapsed > 3) this.setState('upright');
+      }
       this.applyMotors();
     }
     const k = this.strength;
@@ -627,7 +663,7 @@ export class Creature {
   }
 
   /** Slow-rate decision making. */
-  think(dt: number, creatures: Creature[]) {
+  think(dt: number, creatures: Creature[], items: Item[] = []) {
     this.attackCooldown -= dt;
     this.turnCooldown -= dt;
     this.invuln = Math.max(0, this.invuln - dt);
@@ -655,6 +691,7 @@ export class Creature {
       bestD = d;
     }
     this.target = best;
+    this.wantItem = null;
 
     if (best) {
       const ot = best.root.body.translation();
@@ -670,6 +707,37 @@ export class Creature {
         else if (best.state === 'ko' && this.attackCooldown <= 0 && Math.random() < 0.3) this.startAttack();
       }
       return;
+    }
+
+    // Curious about loose items: walk over and pick one up.
+    if (!this.heldItem) {
+      let bestItem: Item | null = null;
+      let bestItemD = 9 * Math.sqrt(this.scale);
+      for (const it of items) {
+        if (it.heldBy || it.disposed) continue;
+        const t = it.body.translation();
+        const d = Math.hypot(t.x - me.x, t.y - me.y);
+        if (d >= bestItemD || Math.abs(t.y - me.y) > 2.5 * this.scale) continue;
+        if (!this.physics.lineOfSight(eye.x, eye.y, t.x, t.y)) continue;
+        bestItem = it;
+        bestItemD = d;
+      }
+      if (bestItem) {
+        this.wantItem = bestItem;
+        const t = bestItem.body.translation();
+        const dx = t.x - me.x;
+        const dir = (Math.sign(dx) || 1) as 1 | -1;
+        if (dir !== this.facing && this.turnCooldown <= 0) this.turn();
+        if (Math.abs(dx) > 0.45 * this.scale + 0.2) {
+          this.moveDir = this.cliffAhead(dir) ? 0 : dir;
+        } else {
+          this.moveDir = 0;
+          this.holdItem(bestItem);
+          this.wantItem = null;
+          this.effects.puff(t.x, t.y, 3);
+        }
+        return;
+      }
     }
 
     // Wander.

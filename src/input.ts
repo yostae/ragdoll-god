@@ -237,7 +237,6 @@ export class Input {
       const p = g.pick(cx, cy);
       if (p && doubleTap && p.entity instanceof Creature) {
         for (const part of p.entity.supports) part.body.applyImpulse({ x: 0, y: p.entity.totalMass * 3, z: 0 }, true);
-        g.effects.word(p.point.x, p.point.y, 'BOING!', '#7fd1ff');
       }
       return;
     }
@@ -254,7 +253,7 @@ export class Input {
     } else if (t.type === 'pin') {
       if (p.entity instanceof Block) {
         p.entity.setAnchored(!p.entity.anchored);
-        g.effects.word(p.point.x, p.point.y, p.entity.anchored ? 'PINNED' : 'LOOSE', '#ffd23f');
+        g.effects.puff(p.point.x, p.point.y, 3);
       }
     } else if (t.type === 'flip') {
       if (p.entity instanceof Creature) {

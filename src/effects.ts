@@ -86,6 +86,12 @@ export class Effects {
   }
 
   update(dt: number) {
+    // Safety cap so a long pause or a hidden tab cannot pile up sprites.
+    while (this.particles.length > 250) {
+      const p = this.particles.shift()!;
+      this.group.remove(p.sprite);
+      (p.sprite.material as THREE.Material).dispose();
+    }
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life += dt;

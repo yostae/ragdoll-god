@@ -314,7 +314,6 @@ export class Game {
       case 'growWand':
         if (target instanceof Creature) {
           this.rescaleCreature(target, 1.3);
-          this.effects.word(point.x, point.y, 'BIGGER!', '#b0ff6b');
         } else if (target instanceof Block) {
           if (target.w * 1.3 <= 12 && target.h * 1.3 <= 12) target.resize(target.w * 1.3, target.h * 1.3);
         } else if (target instanceof Decor) {
@@ -326,7 +325,6 @@ export class Game {
       case 'shrinkWand':
         if (target instanceof Creature) {
           this.rescaleCreature(target, 1 / 1.3);
-          this.effects.word(point.x, point.y, 'teeny!', '#7fd1ff');
         } else if (target instanceof Block) target.resize(target.w / 1.3, target.h / 1.3);
         else if (target instanceof Decor) {
           target.scale = Math.max(0.3, target.scale / 1.3);
@@ -339,26 +337,25 @@ export class Game {
           const i = MATERIAL_ORDER.indexOf(target.material.id);
           const next = MATERIAL_ORDER[(i + 1) % MATERIAL_ORDER.length];
           target.setMaterial(next);
-          this.effects.word(point.x, point.y, next.toUpperCase() + '!', '#c77dff');
           fx();
         } else if (target instanceof Creature) {
-          target.knockOut(4);
-          this.effects.word(point.x, point.y, 'ZONK!', '#c77dff');
+          target.knockDown(1.5);
           fx();
         }
         break;
       case 'bonkHammer':
         if (target instanceof Creature) {
           const dir = holder ? holder.facing : 0;
+          target.knockDown(0.6);
           target.hurt(30, point.x - dir);
           for (const p of target.supports) p.body.applyImpulse({ x: dir * target.totalMass * 3, y: target.totalMass * 4, z: 0 }, true);
-          this.effects.word(point.x, point.y);
           this.renderer.shake = 0.35;
           fx(10);
         } else if (target instanceof Block) {
-          if (!target.anchored) target.body.applyImpulse({ x: 0, y: target.body.mass() * 5, z: 0 }, true);
-          this.effects.word(point.x, point.y, 'CLANG!', '#ffd23f');
-          fx(5);
+          this.smashBlock(target, point);
+        } else if (target instanceof Item) {
+          target.body.applyImpulse({ x: (Math.random() - 0.5) * target.def.mass * 6, y: target.def.mass * 8, z: 0 }, true);
+          fx(4);
         }
         break;
       case 'feather':
@@ -367,7 +364,6 @@ export class Game {
           target.setGravityScale(on ? 0.04 : 1);
           target.floatTimer = on ? 8 : 0;
           if (on) for (const p of target.supports) p.body.applyImpulse({ x: 0, y: target.totalMass * 2, z: 0 }, true);
-          this.effects.word(point.x, point.y, on ? 'FLOATY!' : 'plop', '#ffffff');
         } else if (target instanceof Block) {
           target.setFloating(!target.floating);
           if (target.floating) target.body.applyImpulse({ x: 0, y: target.body.mass() * 1.5, z: 0 }, true);
@@ -379,13 +375,37 @@ export class Game {
     }
   }
 
+  /** Hammer time: big blocks shatter into loose quarters, small ones crumble away. */
+  smashBlock(b: Block, point: THREE.Vector3) {
+    const t = b.body.translation();
+    this.effects.puff(point.x, point.y, 8);
+    this.effects.stars(point.x, point.y, 6, 1);
+    this.renderer.shake = 0.25;
+    const material = b.material.id;
+    if (b.w * b.h <= 0.6 || b.w * b.h > 60) {
+      // Tiny pieces vanish; the huge ground slabs just take the hit.
+      if (b.w * b.h <= 0.6) this.remove(b);
+      else this.effects.puff(point.x, point.y, 6);
+      return;
+    }
+    const w = b.w / 2;
+    const h = b.h / 2;
+    this.remove(b);
+    for (const sx of [-1, 1])
+      for (const sy of [-1, 1]) {
+        const nb = this.spawnBlock(material, t.x + (sx * w) / 2, t.y + (sy * h) / 2, w, h, false);
+        nb.body.applyImpulse({ x: sx * nb.body.mass() * (1.5 + Math.random()), y: nb.body.mass() * (2 + Math.random() * 2), z: 0 }, true);
+        nb.body.applyTorqueImpulse({ x: 0, y: 0, z: (Math.random() - 0.5) * nb.body.mass() }, true);
+      }
+  }
+
   // ---------- update loop ----------
 
   update(dt: number) {
     this.clock += dt;
     if (this.mode === 'play') {
       const scaled = dt * this.modCtx.slowMo;
-      for (const c of this.creatures) c.think(scaled, this.creatures);
+      for (const c of this.creatures) c.think(scaled, this.creatures, this.items);
       this.physics.step(scaled, () => this.beforeStep());
       this.processHits();
       this.killFloor();
@@ -460,7 +480,6 @@ export class Game {
       victim.hurt(dmg, a.position.x);
       for (const p of victim.supports) p.body.applyImpulse({ x: (dir * victim.totalMass * 1.6 * mult) / victim.supports.length, y: (victim.totalMass * 1.2 * mult) / victim.supports.length, z: 0 }, true);
       this.effects.stars(hitPoint.x, hitPoint.y, Math.min(12, 4 + dmg / 3), 1);
-      this.effects.word(hitPoint.x, hitPoint.y);
       if (mult > 1.5) this.renderer.shake = 0.3;
       if (a.heldItem && a.heldItem.def.id !== 'bonkHammer') this.applyItemEffect(a.heldItem.def.id, victim, new THREE.Vector3(hitPoint.x, hitPoint.y, 0), a);
     }
@@ -496,7 +515,6 @@ export class Game {
           B.hurt(base * 0.25);
         }
         this.effects.stars(pt.x, pt.y, Math.min(10, 3 + base / 4), 1);
-        if (base > 6) this.effects.word(pt.x, pt.y);
         if (base > 20) this.renderer.shake = 0.25;
         continue;
       }
@@ -511,7 +529,6 @@ export class Game {
           const mult = item.heldBy ? 1.6 : 0.6;
           other.hurt(base * item.def.strike * mult, item.heldBy ? item.heldBy.position.x : pt.x);
           this.effects.stars(pt.x, pt.y, Math.min(12, 4 + base / 3), 1.2);
-          this.effects.word(pt.x, pt.y);
           if (item.def.id !== 'bonkHammer' && item.heldBy) this.applyItemEffect(item.def.id, other, new THREE.Vector3(pt.x, pt.y, 0), item.heldBy);
           if (item.def.id === 'bonkHammer' && base > 10) this.renderer.shake = 0.3;
         } else if (other instanceof Block && item.heldBy && speed > 3) {
@@ -526,7 +543,6 @@ export class Game {
       if (cr && speed > 6) {
         cr.hurt(base * 0.35);
         this.effects.puff(pt.x, pt.y, 4);
-        if (speed > 9) this.effects.word(pt.x, pt.y, 'THUD!', '#ffffff');
       }
     }
     hits.length = 0;
